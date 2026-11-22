@@ -1,0 +1,127 @@
+/* Version 3 looks. "Premium & elegant" is the default (data-style="premium"), "Clean & calm"
+   is data-style="calm", and "Modern & colourful" is styles.css on its own (data-style="modern").
+   Each has light and dark. Grade colours stay the same in every look, because they mean something. */
+
+@font-face { font-family: 'DM Serif Display'; font-weight: 400; font-display: swap; src: url(fonts/dm-serif-display-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 400; font-display: swap; src: url(fonts/manrope-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 500; font-display: swap; src: url(fonts/manrope-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 600; font-display: swap; src: url(fonts/manrope-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 700; font-display: swap; src: url(fonts/manrope-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 800; font-display: swap; src: url(fonts/manrope-latin-800-normal.woff2) format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 400; font-display: swap; src: url(fonts/dm-sans-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 500; font-display: swap; src: url(fonts/dm-sans-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 600; font-display: swap; src: url(fonts/dm-sans-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 700 800; font-display: swap; src: url(fonts/dm-sans-latin-700-normal.woff2) format('woff2'); }
+
+/* ===================== Premium & elegant ===================== */
+[data-style="premium"] {
+  --bg: #F3F4F7; --surface: #FFFFFF; --surface2: #F7F8FA; --text: #13213F; --muted: #586178; --border: #E3E5EB; --chip: #EEF0F4;
+  --accent: #1B2A4E; --accent2: #2C3F6E; --accentsoft: #EEF0F6; --shadow: rgba(19, 33, 63, .10); --shadow2: rgba(19, 33, 63, .18);
+  --track: #ECEEF2; --link: #8A6A2B; --input: #FFFFFF;
+  --gold: #8A6A2B; --goldbright: #C9A24E; --navy: #13213F; --side: #0F1B33; --sidetext: #E9E4D6; --sidemuted: #9AA4BB; --sidehover: rgba(255, 255, 255, .06);
+  --onaccent: #FFFFFF; --serif: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+}
+[data-style="premium"][data-theme="dark"] {
+  --bg: #0A1224; --surface: #111C34; --surface2: #16233F; --text: #F1EEE6; --muted: #A9B2C6; --border: #22304F; --chip: #1A2745;
+  --accent: #D9B66A; --accent2: #E8C982; --accentsoft: #2A2B2A; --shadow: rgba(0, 0, 0, .5); --shadow2: rgba(0, 0, 0, .65);
+  --track: #1C2A47; --link: #E8C982; --input: #0E1830;
+  --gold: #D9B66A; --goldbright: #E8C982; --navy: #0B1530; --side: #081022; --sidetext: #EDE7D6; --sidemuted: #8E99B3; --sidehover: rgba(255, 255, 255, .05);
+  --onaccent: #13213F;
+}
+[data-style="premium"] body { font-family: 'Manrope', 'Plex Arabic', 'Segoe UI', system-ui, sans-serif; }
+[data-style="premium"][dir="rtl"] body { font-family: 'Plex Arabic', 'Manrope', 'Segoe UI', system-ui, sans-serif; }
+[data-style="premium"] .topbar h1, [data-style="premium"] .card > h2, [data-style="premium"] .login h1, [data-style="premium"] .diary-lock h2 { font-family: var(--serif); font-weight: 400; letter-spacing: 0; }
+[data-style="premium"][dir="rtl"] .topbar h1, [data-style="premium"][dir="rtl"] .card > h2, [data-style="premium"][dir="rtl"] .login h1 { font-family: 'Plex Arabic', var(--serif); font-weight: 700; }
+[data-style="premium"] .topbar h1 { font-size: 30px; }
+[data-style="premium"] .card > h2 { font-size: 21px; margin-bottom: 14px; }
+/* the sidebar: deep navy with gold */
+[data-style="premium"] .side { background: var(--side); border-inline-end: 0; color: var(--sidetext); }
+[data-style="premium"] .brand .name { font-family: var(--serif); font-weight: 400; font-size: 19px; color: var(--sidetext); }
+[data-style="premium"] .brand .kids { color: var(--goldbright); letter-spacing: .18em; text-transform: uppercase; font-size: 10px; font-weight: 800; }
+[data-style="premium"] .brand img { box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
+[data-style="premium"] .nav .group { color: var(--sidemuted); letter-spacing: .16em; }
+[data-style="premium"] .nav a { color: var(--sidetext); font-weight: 600; border-radius: 10px; }
+[data-style="premium"] .nav a .ico { color: var(--sidemuted); }
+[data-style="premium"] .nav a:hover { background: var(--sidehover); color: var(--goldbright); }
+[data-style="premium"] .nav a:hover .ico { color: var(--goldbright); }
+[data-style="premium"] .nav a.active { background: rgba(201, 162, 78, .14); color: var(--goldbright); box-shadow: inset 3px 0 0 var(--goldbright); }
+[data-style="premium"][dir="rtl"] .nav a.active { box-shadow: inset -3px 0 0 var(--goldbright); }
+[data-style="premium"] .nav a.active .ico { color: var(--goldbright); }
+[data-style="premium"] .nav a .badge { background: var(--goldbright); color: #13213F; }
+[data-style="premium"] .side .who { border-top-color: rgba(255, 255, 255, .08); color: var(--sidetext); }
+[data-style="premium"] .side .who .rl { color: var(--sidemuted); }
+[data-style="premium"] .side .who .btn { background: transparent; border-color: rgba(255, 255, 255, .14); color: var(--sidetext); }
+/* surfaces and buttons */
+[data-style="premium"] .card { border-radius: 18px; box-shadow: 0 1px 2px var(--shadow); }
+[data-style="premium"] .btn { border-radius: 99px; font-weight: 700; letter-spacing: .01em; }
+[data-style="premium"] .btn.primary { background-image: none; background-color: var(--accent); color: var(--onaccent); }
+[data-style="premium"] .btn.primary:hover { background-color: var(--goldbright); color: #13213F; box-shadow: 0 12px 28px rgba(201, 162, 78, .35); }
+[data-style="premium"] .btn.icon, [data-style="premium"] .btn.small { border-radius: 99px; }
+[data-style="premium"] .chip.accent { background: rgba(201, 162, 78, .16); color: var(--gold); }
+[data-style="premium"] .stat { font-family: var(--serif); font-weight: 400; letter-spacing: 0; }
+[data-style="premium"] .stat-label { letter-spacing: .14em; text-transform: uppercase; font-size: 10.5px; color: var(--gold); font-weight: 800; }
+[data-style="premium"] .pill.on { background: var(--accent); color: var(--onaccent); border-color: var(--accent); }
+/* children's cards: navy with a thin line in each child's own colour */
+[data-style="premium"] .kcard { border-radius: 18px; border: 1px solid var(--border); box-shadow: 0 1px 2px var(--shadow); }
+[data-style="premium"] .kcard .top { background: linear-gradient(150deg, #13213F 0%, #1E3160 100%) !important; border-top: 4px solid var(--kid, #C9A24E); }
+[data-style="premium"][data-theme="dark"] .kcard .top { background: linear-gradient(150deg, #0E1A35 0%, #1A2B52 100%) !important; }
+[data-style="premium"] .kcard .ini { background: transparent; border: 1px solid #C9A24E; color: #E8C982; border-radius: 50%; font-family: var(--serif); font-weight: 400; font-size: 19px; }
+[data-style="premium"] .kcard .big { font-family: var(--serif); font-weight: 400; font-size: 52px; letter-spacing: 0; color: #FFFFFF; }
+[data-style="premium"] .kcard:hover { transform: translateY(-5px); }
+/* sign-in */
+[data-style="premium"] .login-wrap { background: radial-gradient(1000px 600px at 15% 0%, rgba(201, 162, 78, .14), transparent 60%), var(--bg); }
+[data-style="premium"] .login { border-radius: 22px; border-top: 3px solid var(--goldbright); }
+[data-style="premium"] .login .logo { box-shadow: 0 14px 30px rgba(20, 110, 255, .30); }
+[data-style="calm"] .login .logo, [data-style="calm"] .brand img { box-shadow: 0 8px 18px rgba(29, 41, 40, .18); }
+[data-style="premium"] .role-ico { background: rgba(201, 162, 78, .14); color: var(--gold); }
+[data-style="premium"] .role-btn:hover:not(:disabled) { border-color: var(--goldbright); }
+[data-style="premium"] .who-btn.on { border-color: var(--goldbright); background: rgba(201, 162, 78, .10); }
+[data-style="premium"] .msg.mine .msg-body { background: var(--accent); color: var(--onaccent); }
+
+/* ===================== Clean & calm ===================== */
+[data-style="calm"] {
+  --bg: #F6F8F7; --surface: #FFFFFF; --surface2: #F1F5F3; --text: #1D2928; --muted: #566563; --border: #E1E8E5; --chip: #EAF0EE;
+  --accent: #2F7D6D; --accent2: #3B8F7D; --accentsoft: #DCEFE9; --shadow: rgba(29, 41, 40, .08); --shadow2: rgba(29, 41, 40, .14);
+  --bad: #B4442A; --badbg: #FCE9E3; --warn: #8C6210; --warnbg: #FBF1DC; --good: #2B7A5C; --goodbg: #E1F3EA;
+  --track: #EAF0EE; --side: #F6F8F7; --link: #2F7D6D; --input: #FFFFFF; --onaccent: #FFFFFF;
+}
+[data-style="calm"][data-theme="dark"] {
+  --bg: #101615; --surface: #172020; --surface2: #1C2726; --text: #E4ECEA; --muted: #9AACA8; --border: #263332; --chip: #22302E;
+  --accent: #6CC7B1; --accent2: #7FD3BE; --accentsoft: #1E3530; --shadow: rgba(0, 0, 0, .4); --shadow2: rgba(0, 0, 0, .55);
+  --bad: #F29A84; --badbg: #3A2420; --warn: #EDC27A; --warnbg: #352B18; --good: #7ED3B0; --goodbg: #173328;
+  --track: #22302E; --side: #101615; --link: #6CC7B1; --input: #121A19; --onaccent: #0F2A24;
+}
+[data-style="calm"] body { font-family: 'DM Sans', 'Plex Arabic', 'Segoe UI', system-ui, sans-serif; font-size: 14.5px; }
+[data-style="calm"][dir="rtl"] body { font-family: 'Plex Arabic', 'DM Sans', 'Segoe UI', system-ui, sans-serif; }
+[data-style="calm"] .topbar h1 { font-weight: 700; letter-spacing: -.01em; }
+[data-style="calm"] .side { border-inline-end: 0; }
+[data-style="calm"] .brand img { box-shadow: none; }
+[data-style="calm"] .nav a.active { background: var(--accentsoft); color: var(--accent); box-shadow: none; font-weight: 700; }
+[data-style="calm"] .nav a.active .badge { background: var(--accent); color: var(--onaccent); }
+[data-style="calm"] .nav a:hover { transform: none; background: var(--surface2); }
+[data-style="calm"] .card { border-radius: 16px; box-shadow: none; }
+[data-style="calm"] .btn { border-radius: 12px; }
+[data-style="calm"] .btn.primary { background-image: none; background-color: var(--accent); color: var(--onaccent); }
+[data-style="calm"] .btn.primary:hover { box-shadow: 0 8px 20px var(--shadow2); }
+[data-style="calm"] .pill.on { background: var(--accent); border-color: var(--accent); color: var(--onaccent); }
+[data-style="calm"] .msg.mine .msg-body { background: var(--accent); color: var(--onaccent); }
+/* children's cards: soft tint of each child's colour, dark text */
+[data-style="calm"] .kcard { border-radius: 16px; border: 1px solid var(--border); box-shadow: none; animation-duration: .5s; }
+[data-style="calm"] .kcard .top { background: color-mix(in srgb, var(--kid, #2F7D6D) 13%, var(--surface)) !important; color: var(--text); }
+[data-style="calm"] .kcard .ini { background: var(--kid, #2F7D6D); color: #fff; border-radius: 50%; }
+[data-style="calm"] .kcard .top span[style*="opacity"] { opacity: 1 !important; }
+[data-style="calm"] .kcard:hover { transform: translateY(-3px); box-shadow: 0 16px 36px var(--shadow); }
+[data-style="calm"] .login-wrap { background: var(--bg); }
+[data-style="calm"] .login { border-radius: 20px; box-shadow: 0 20px 50px var(--shadow); }
+
+/* ===================== the style picker in Settings ===================== */
+.style-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.style-opt { display: flex; flex-direction: column; gap: 8px; text-align: start; padding: 12px; border-radius: 16px; border: 2px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; transition: border-color .2s, transform .2s; }
+.style-opt:hover { transform: translateY(-2px); }
+.style-opt.on { border-color: var(--accent); }
+.style-swatch { height: 70px; border-radius: 10px; display: flex; overflow: hidden; border: 1px solid rgba(0, 0, 0, .06); }
+.style-swatch i { display: block; }
+
+/* the family's logo on the sign-in screens: a glowing tree on its own dark tile */
+.login .logo { width: 92px; height: 92px; border-radius: 24px; object-fit: cover; box-shadow: 0 14px 30px rgba(20, 110, 255, .30); }
+.brand img { border-radius: 11px; }

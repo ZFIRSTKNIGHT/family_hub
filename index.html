@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; worker-src 'self' blob:; manifest-src 'self'">
+  <meta name="theme-color" content="#F3F5FB">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Family Hub">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/favicon-96.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <title>M. Ebrahim Family Hub</title>
+  <script src="lib/theme-boot.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles-themes.css">
+  <link rel="stylesheet" href="styles-phone.css">
+  <link rel="stylesheet" href="phone/phone.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <script src="config.js"></script>
+  <script src="lib/util.js"></script>
+  <script src="lib/i18n.js"></script>
+  <script src="vendor/scrypt.js"></script>
+  <script src="phone/merge.gen.js"></script>
+  <script src="phone/fhcrypto.js"></script>
+  <script src="phone/idb.js"></script>
+  <script src="phone/msauth.js"></script>
+  <script src="phone/graph.js"></script>
+  <script src="phone/hub.js"></script>
+  <script src="phone/boot.js"></script>
+</body>
+</html>
