@@ -47,7 +47,7 @@
     const isParent = KH.app.isParent();
     const childId = isParent ? only : KH.store.user.childId;
     if (!month) { const t = new Date(); month = new Date(t.getFullYear(), t.getMonth(), 1); }
-    const items = A.calendarItems(KH.store.data, { childId: childId || undefined, year: month.getFullYear(), parent: isParent, today: u.today(), hideAmounts: KH.lock.hidden() });
+    const items = A.calendarItems(KH.store.data, { childId: childId || undefined, year: month.getFullYear(), parent: isParent, today: u.today(), hideAmounts: KH.lock.hidden(), noMoney: KH.access.noMoney() });
     const byDay = new Map();
     for (const it of items) {
       const start = u.parseDate(it.date), end = it.end ? u.parseDate(it.end) : start;

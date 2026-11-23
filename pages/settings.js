@@ -65,14 +65,17 @@
         KH.app.refresh();
       } catch (e) { u.toast(e.message, 'bad'); }
     };
+    const familyCloud = info.cloud === 'family-cloud';
     return u.section('Family data and cloud',
-      h('div', { class: where ? 'okbox' : 'warnbox', style: { marginBottom: '12px' } },
-        where ? `Your data is in ${where} and is encrypted before it leaves this PC. Any PC signed in to the same ${where} can open it with a parent's password (or the recovery key).`
-          : 'Your data is kept on this PC only (encrypted). Move it into OneDrive or Google Drive to keep a cloud copy and use it on other PCs.'),
+      familyCloud
+        ? h('div', { class: 'okbox', style: { marginBottom: '12px' } }, 'Your data is kept in this folder and the family cloud keeps every PC and phone up to date. Everything is encrypted before it leaves this PC. ', h('a', { onclick: () => KH.app.go('#/cloud') }, 'Family cloud and devices'))
+        : h('div', { class: where ? 'okbox' : 'warnbox', style: { marginBottom: '12px' } },
+          where ? `Your data is in ${where} and is encrypted before it leaves this PC. Any PC signed in to the same ${where} can open it with a parent's password (or the recovery key).`
+            : 'Your data is kept on this PC only (encrypted). Set up the family cloud (Family cloud in the menu) to use it on other PCs and phones.'),
       h('div', { class: 'small', style: { wordBreak: 'break-all', marginBottom: '12px' } }, h('b', null, 'Folder: '), h('span', { 'data-noi18n': '1' }, info.dataDir || '')),
       h('div', { class: 'row' },
         h('button', { class: 'btn', onclick: () => hub.showFolder() }, 'Open folder'),
-        h('button', { class: 'btn', onclick: move }, 'Move to another place...'),
+        familyCloud ? null : h('button', { class: 'btn', onclick: move }, 'Move to another place...'),
         h('button', { class: 'btn', onclick: async () => { await hub.backupNow(); u.toast('Backup made'); loadBackups(); } }, 'Back up now')),
       h('h3', { style: { margin: '18px 0 6px', fontSize: '14px' } }, 'Backups (encrypted)'), backups,
       h('h3', { style: { margin: '18px 0 6px', fontSize: '14px' } }, 'Copy records without the cloud'),
@@ -193,12 +196,86 @@
   function sabisCard() {
     const sab = KH.store.settings().sabis || {};
     const time = h('input', { type: 'time', value: sab.time || '15:00', style: { width: '140px' }, onchange: e => sabisSetting('time', e.target.value || '15:00') });
-    return u.section('SABIS',
+    return u.section('School connections',
+      h('h3', { style: { margin: '0 0 6px', fontSize: '14px' } }, 'SABIS Digital Platform'),
       check('Update from SABIS every day by itself', 'Runs once a day after the time below, while the app is running (it keeps running in the tray). New things arrive as Windows notifications.', sab.auto !== false, v => sabisSetting('auto', v)),
       field('Daily update after', time),
       check('Download study files (exam preparation, PrepList and course practice)', 'Saved by child and subject. Downloading a file marks it as read on SABIS, the same as opening it there.', sab.downloadDocs !== false, v => sabisSetting('downloadDocs', v)),
       h('div', { class: 'row' }, KH.sabisButton(), h('button', { class: 'btn', onclick: () => KH.app.go('#/credentials') }, u.icon('key'), 'SABIS login')),
-      h('p', { class: 'small muted' }, 'The update only reads SABIS. It never presses Save or sends anything there. Years before 2026-27 are not on SABIS, so keep using Add marks for those.'));
+      h('p', { class: 'small muted' }, 'The update only reads SABIS. It never presses Save or sends anything there. Years before 2026-27 are not on SABIS, so keep using Add marks for those.'),
+      calendarLinks(),
+      h('h3', { style: { margin: '16px 0 6px', fontSize: '14px' } }, 'Another school platform'),
+      h('p', { class: 'small muted', style: { marginTop: 0 } }, 'For a school without SABIS: read report cards from a photo or PDF with Add marks, add its calendar link above if it has one, and enter homework and dates by hand. More platforms can be connected where the school allows it.'));
+  }
+  // school calendar links (iCal / webcal): their events come into the calendar every day
+  function calendarLinks() {
+    const list = () => (KH.store.settings().schoolConnections || []).filter(c => c.type === 'ics');
+    const box = h('div');
+    const draw = () => {
+      box.innerHTML = '';
+      const nameIn = h('input', { type: 'text', placeholder: 'For example: School calendar' });
+      const urlIn = h('input', { type: 'url', placeholder: 'https://… or webcal://…' });
+      box.appendChild(KH.i18n.apply(h('div', null,
+        h('h3', { style: { margin: '16px 0 6px', fontSize: '14px' } }, 'School calendar links'),
+        list().length ? h('table', { class: 'list' }, h('tbody', null, list().map(c => h('tr', null,
+          h('td', null, h('b', { 'data-noi18n': '1' }, c.name || 'School calendar'), h('div', { class: 'small muted', 'data-noi18n': '1', style: { wordBreak: 'break-all' } }, c.url)),
+          h('td', { class: 'small muted' }, c.error ? h('span', { style: { color: 'var(--bad)' } }, c.error) : c.last ? `${c.count || 0} ${t('events')} · ${u.ago(c.last)}` : t('not read yet')),
+          h('td', { class: 'right' },
+            h('button', { class: 'btn small', onclick: async () => { try { const r = await hub.schoolCalendarSync(c.id); u.toast(`${r.count} ${t('events read')}`, 'good'); draw(); } catch (e) { u.toast(e.message, 'bad'); } } }, 'Read now'),
+            h('button', { class: 'btn small', onclick: async () => {
+              if (!(await u.confirm('Remove this school calendar? Events already brought in stay.', 'Remove'))) return;
+              KH.store.setSetting('schoolConnections', (KH.store.settings().schoolConnections || []).filter(x => x.id !== c.id)); draw();
+            } }, 'Remove')))))) : h('div', { class: 'small muted' }, 'If the school shares its calendar as a link (iCal or webcal), add it here and its events come into the calendar every day.'),
+        h('div', { class: 'row', style: { marginTop: '8px', gap: '8px', flexWrap: 'wrap' } }, nameIn, urlIn,
+          h('button', { class: 'btn', onclick: async () => {
+            const url = urlIn.value.trim();
+            if (!/^(https|webcal):\/\//i.test(url) && !/^http:\/\/127\.0\.0\.1[:/]/.test(url)) { u.toast('Use a calendar link that starts with https:// or webcal://', 'bad'); return; }
+            const conn = { id: `sc-${Date.now().toString(36)}`, type: 'ics', name: nameIn.value.trim() || 'School calendar', url };
+            KH.store.setSetting('schoolConnections', (KH.store.settings().schoolConnections || []).concat([conn]));
+            await KH.store.flush();
+            try { const r = await hub.schoolCalendarSync(conn.id); u.toast(`${r.count} ${t('events read')}`, 'good'); } catch (e) { u.toast(e.message, 'bad'); }
+            draw();
+          } }, u.icon('plus'), 'Add calendar')))));
+    };
+    draw();
+    return box;
+  }
+
+  // the sound of notifications on this PC: Windows' own, one of the app's, or none; volume; quiet hours
+  function soundBlock() {
+    const box = h('div', { style: { margin: '4px 0 14px' } });
+    if (!hub.soundGet) return box;
+    const NAMES = [['chime', 'Chime'], ['bell', 'Bell'], ['twotone', 'Two tones'], ['harp', 'Harp'], ['pop', 'Soft pop'], ['windows', "Windows' own sound"], ['none', 'No sound']];
+    hub.soundGet().then(cur => {
+      const save = async b => { try { cur = await hub.soundSet(Object.assign({}, cur, b)); } catch (e) { u.toast(e.message, 'bad'); } };
+      const play = () => { if (cur.sound === 'none' || cur.sound === 'windows') return; const a = new Audio(`../assets/sounds/${cur.sound}.wav`); a.volume = cur.volume; a.play().catch(() => {}); };
+      const sel = h('select', { onchange: async e => { await save({ sound: e.target.value }); play(); } }, NAMES.map(([v, l]) => h('option', { value: v, selected: cur.sound === v }, l)));
+      const vol = h('input', { type: 'range', min: '0', max: '100', value: String(Math.round(cur.volume * 100)), style: { width: '160px' }, onchange: async e => { await save({ volume: Number(e.target.value) / 100 }); play(); } });
+      const from = h('input', { type: 'time', value: cur.from, onchange: e => save({ from: e.target.value }) });
+      const to = h('input', { type: 'time', value: cur.to, onchange: e => save({ to: e.target.value }) });
+      const quiet = h('input', { type: 'checkbox', checked: cur.quiet, onchange: e => save({ quiet: e.target.checked }) });
+      box.appendChild(KH.i18n.apply(h('div', null,
+        h('h3', { style: { margin: '0 0 6px', fontSize: '14px' } }, 'Notification sound on this PC'),
+        h('div', { class: 'row', style: { gap: '10px', flexWrap: 'wrap' } }, sel, h('span', { class: 'small muted' }, 'Volume'), vol,
+          h('button', { class: 'btn small', onclick: play }, 'Play')),
+        h('label', { class: 'row small', style: { marginTop: '8px', gap: '8px', flexWrap: 'wrap' } }, quiet, h('span', null, 'Quiet hours: no sound from'), from, h('span', null, 'to'), to),
+        h('div', { class: 'small muted', style: { marginTop: '4px' } }, 'During quiet hours notifications still appear, without sound. Phones use their own notification sound.'))));
+    }).catch(() => {});
+    return box;
+  }
+
+  // Settings > Features: switch parts of the app off for the whole family (the organiser)
+  function featuresCard() {
+    const F = KH.features;
+    return u.section('Features',
+      h('p', { class: 'small muted', style: { marginTop: 0 } }, 'Switch off what the family does not use: it leaves the menus, the pages, Home and the reminders. Nothing is deleted, and switching it on again brings it all back. Encryption, backups and locking are always on.'),
+      h('div', { class: 'grid g2', style: { gap: '0 18px' } }, F.list.map(f => h('label', { class: 'row', style: { padding: '6px 0', gap: '8px', alignItems: 'flex-start', flexWrap: 'nowrap' } },
+        h('input', { type: 'checkbox', checked: F.on(f.key), onchange: e => {
+          const cur = Object.assign({}, KH.store.settings().features || {});
+          if (e.target.checked) delete cur[f.key]; else cur[f.key] = false;
+          KH.store.setSetting('features', cur);
+          KH.app.refresh();
+        } }), h('span', null, f.label)))));
   }
 
   function windowsCard() {
@@ -210,6 +287,7 @@
           try { const ok = await hub.notifyTest(); u.toast(ok ? 'Sent. You should see it near the clock.' : 'Windows did not show it. Check Settings > System > Notifications, and that Focus / Do not disturb is off.', ok ? 'good' : 'bad'); } catch (e) { u.toast(e.message, 'bad'); }
         } }, u.icon('bell'), 'Send test notification'),
         h('button', { class: 'btn', onclick: async () => { const n = await hub.notifyCheck(); u.toast(n ? `${n} reminder${n === 1 ? '' : 's'} shown` : 'Nothing new to remind you about'); } }, 'Check reminders now')),
+      soundBlock(),
       checkSetting('keepRunning', 'Keep running in the tray when the window is closed', 'Needed for reminders and the daily SABIS update. Right-click the tray icon to quit.'),
       check('Start with Windows (quietly, in the tray)', 'So reminders arrive even when you have not opened the app.', info.loginItem, async v => { await hub.loginItem(v); KH.store.info = await hub.info(); u.toast('Saved'); }),
       h('div', { class: 'note small' }, h('b', null, 'Tray icon hidden? '), 'Windows 11 hides new tray icons under the ^ arrow near the clock. To keep it visible: Settings > Personalisation > Taskbar > Other system tray icons, then turn on M. Ebrahim Family Hub. You can also drag the icon from the ^ area onto the taskbar.'));
@@ -245,24 +323,41 @@
   // ---------- the phone app's Settings: this phone, the look, the money PIN, the shared settings ----------
   function phoneCard() {
     const P = window.FHPhone || {}, H = window.FHPhoneHub || {};
-    const acct = (P.account && P.account()) || {};
-    const folder = (P.folder && P.folder()) || {};
     const state = h('div', { class: 'small muted', style: { margin: '4px 0 10px' } }, '');
-    if (H.pending) H.pending().then(p => { state.textContent = t(p ? 'Some changes are waiting for a connection. They are sent when the phone is online.' : 'Up to date with OneDrive.'); }).catch(() => {});
+    const who = h('div');
+    const push = h('div', { style: { margin: '8px 0' } });
+    hub.cloud.status().then(st => {
+      who.innerHTML = '';
+      who.appendChild(KH.i18n.apply(h('div', null,
+        field('Family', h('b', { 'data-noi18n': '1' }, st.family || '')),
+        field('This phone', h('div', null, h('b', { 'data-noi18n': '1' }, st.deviceName || ''), st.role ? h('span', { class: 'small muted' }, ` · ${t(st.role === 'owner' ? 'Organiser' : st.role === 'parent' ? 'Parent' : 'Family')}`) : null)))));
+    }).catch(() => {});
+    if (H.pending) H.pending().then(p => { state.textContent = t(p ? 'Some changes are waiting for a connection. They are sent when the phone is online.' : 'Up to date with the family cloud.'); }).catch(() => {});
+    const drawPush = on => {
+      push.innerHTML = '';
+      push.appendChild(KH.i18n.apply(on
+        ? h('div', { class: 'okbox small' }, 'Notifications are on: messages and family news arrive even when the app is closed, with the phone\'s own sound.')
+        : h('div', null, h('div', { class: 'small muted', style: { marginBottom: '6px' } }, /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'On an iPhone, notifications work once the app is on the Home Screen (Share > Add to Home Screen).' : 'Get messages and family news even when the app is closed.'),
+          h('button', { class: 'btn primary', onclick: async () => {
+            try { const ok = await hub.cloud.enablePush(); if (ok) { u.toast('Notifications are on', 'good'); drawPush(true); } else u.toast('Notifications were not allowed. You can allow them in the phone\'s settings for this app.', 'bad'); } catch (e) { u.toast(e.message, 'bad'); }
+          } }, u.icon('bell'), 'Turn on notifications'))));
+    };
+    hub.cloud.pushReady().then(drawPush).catch(() => drawPush(false));
     return u.section('This phone',
-      h('p', { class: 'small muted', style: { marginTop: 0 } }, 'This phone reads and saves the family data in OneDrive, encrypted. SABIS updates, reading marks from pictures, backups and password codes by email stay on the family PC.'),
-      field('Microsoft account', h('div', null, h('b', { 'data-noi18n': '1' }, acct.name || acct.username || ''), acct.name && acct.username ? h('div', { class: 'small muted', 'data-noi18n': '1' }, acct.username) : null)),
-      field('Family folder', h('div', null, h('b', { 'data-noi18n': '1' }, folder.name || ''), folder.owner ? h('div', { class: 'small muted' }, `OneDrive of ${folder.owner}`) : null)),
-      state,
+      h('p', { class: 'small muted', style: { marginTop: 0 } }, 'This phone reads and saves the family data in the family cloud, encrypted. SABIS updates, reading marks from pictures and backups stay on the family PC.'),
+      who, state, push,
       h('div', { class: 'row' },
-        h('button', { class: 'btn', onclick: async () => { try { await H.syncNow(); u.toast('Up to date', 'good'); KH.app.refresh(); } catch (e) { u.toast(e.message, 'bad'); } } }, u.icon('sync'), 'Sync now'),
-        h('button', { class: 'btn', onclick: () => P.signIn && P.signIn() }, 'Sign in to Microsoft again')),
+        h('button', { class: 'btn', onclick: async () => { try { await H.syncNow(); u.toast('Up to date', 'good'); KH.app.refresh(); } catch (e) { u.toast(e.message, 'bad'); } } }, u.icon('sync'), 'Sync now')),
       h('div', { class: 'row', style: { marginTop: '10px' } },
         h('button', { class: 'btn danger', onclick: async () => {
           if (!(await u.confirm('Forget the family data on this phone? A parent then unlocks it again with their password or the recovery key.', 'Forget this phone'))) return;
           await hub.forgetPC(); try { localStorage.removeItem('kh.remember'); } catch (e) { /* ignore */ } location.reload();
         } }, 'Forget this phone'),
-        h('button', { class: 'btn', onclick: async () => { if (await u.confirm('Sign out of Microsoft on this phone?', 'Sign out')) P.signOut && P.signOut(); } }, 'Sign out of Microsoft')));
+        h('button', { class: 'btn', onclick: async () => {
+          if (!(await u.confirm('Leave the family cloud on this phone? To use it again it needs a new code from a family device.', 'Leave'))) return;
+          await hub.forgetPC(); try { localStorage.removeItem('kh.remember'); } catch (e) { /* ignore */ }
+          if (P.leave) await P.leave(); else location.reload();
+        } }, 'Leave the family cloud')));
   }
   function pinCard() {
     const pinSet = KH.lock.pinSet();
@@ -311,7 +406,7 @@
           appearanceCard(),
           generalCard(s, nameIn, curIn),
           analysisCard()),
-        h('div', null, dataCard(), securityCard(),
+        h('div', null, dataCard(), featuresCard(), securityCard(),
           u.section('Company reimbursement',
             h('p', { class: 'small muted', style: { marginTop: 0 } }, 'Used by the Company reimbursement page (parents only, behind the PIN).'),
             numberSetting('reimburseLimit', 'Limit (all children together)', `In ${s.currency || 'SAR'}. Default 100,000.`, '100'),
@@ -319,6 +414,27 @@
             field('The limit applies', periodSel)),
           readerCard(),
           aboutCard(info))));
+  };
+
+  // ---------------- Control: what other parent accounts see (the organiser only) ----------------
+  KH.pages.control = function () {
+    const A = KH.access;
+    const others = (KH.store.data.users || []).filter(x => x.role === 'parent' && x.id !== A.ownerId());
+    const rows = A.SECTIONS.map(sec => {
+      const box = h('input', { type: 'checkbox', checked: A.shown(sec.key), onchange: e => {
+        const c = Object.assign({}, KH.store.settings().control || {}, { [sec.key]: e.target.checked });
+        KH.store.setSetting('control', c);
+        u.toast(e.target.checked ? 'Shown to the other parent account' : 'Hidden from the other parent account');
+      } });
+      return h('label', { class: 'row', style: { padding: '8px 0', borderBottom: '1px solid var(--line)', gap: '10px' } }, box, h('span', null, sec.label));
+    });
+    return h('div', { style: { maxWidth: '720px' } },
+      u.section('Control',
+        h('p', { class: 'muted', style: { marginTop: 0 } }, others.length
+          ? `What ${others.map(o => o.displayName || o.username).join(', ')} can see. Ticked sections are shown; the rest disappear from that account's menu and pages.`
+          : 'What other parent accounts can see, once you add one in Accounts. Ticked sections are shown.'),
+        rows,
+        h('div', { class: 'note small', style: { marginTop: '12px' } }, 'Company reimbursement, Settings, Family cloud and this Control page are on your account only. Money and Credentials start hidden, and they also ask for the PIN.')));
   };
 
   // ---------------- accounts ----------------

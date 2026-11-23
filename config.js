@@ -1,6 +1,6 @@
 window.FH_CONFIG = {
- "version": "3.1.0-7cee2908ab",
- "clientId": "",
+ "version": "4.0.0-febc178b0f",
+ "cloudUrl": "https://family-hub.eng-mohamedebrahim.workers.dev",
  "appScripts": [
   "lib/knowledge.js",
   "lib/analysis.js",
@@ -23,6 +23,7 @@ window.FH_CONFIG = {
   "pages/library.js",
   "pages/mydiary.js",
   "pages/messages.js",
+  "pages/cloud.js",
   "app.js"
  ]
 };

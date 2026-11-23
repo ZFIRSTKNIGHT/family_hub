@@ -182,7 +182,7 @@
       att && att.absences !== null ? u.stat('Absences this term', att.absences, att.infractions ? `${att.infractions} behaviour note${att.infractions === 1 ? '' : 's'}` : 'no behaviour notes')
         : u.stat('Study this week', `${st.last7} h`, st.streak ? `${st.streak}-day streak` : (nb && nb.inDays <= 30 ? `birthday in ${nb.inDays} days` : 'log hours in Study hours'))));
 
-    const alerts = A.alerts(KH.store.data, u.today(), { childId: child.id, parent: KH.app.isParent(), hideAmounts: KH.lock.hidden() }).filter(a => a.kind !== 'analysis');
+    const alerts = A.alerts(KH.store.data, u.today(), { childId: child.id, parent: KH.app.isParent(), hideAmounts: KH.lock.hidden(), noMoney: KH.access.noMoney() }).filter(a => a.kind !== 'analysis');
     if (alerts.length) wrap.appendChild(u.section('Coming up', KH.alertList(alerts, 6)));
 
     wrap.appendChild(h('div', { class: 'grid g2' },

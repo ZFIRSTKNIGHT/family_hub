@@ -145,6 +145,18 @@
   KH.createPin = createPin;
 
   async function forgotPin() {
+    // with the family cloud, the only way to reset the PIN is a code e-mailed to the organiser
+    let st = null;
+    try { st = hub.cloud ? await hub.cloud.status() : null; } catch (e) { st = null; }
+    if (st && st.connected && st.deviceStatus === 'active') {
+      let req;
+      try { req = await hub.cloud.codeRequest({ purpose: 'pin-reset', subject: 'pin', label: 'the PIN for money and credentials' }); } catch (e) { u.toast(e.message, 'bad'); return false; }
+      if (!req.sent) { u.toast('The e-mail for codes is not set up yet, so the PIN cannot be reset now.', 'bad'); return false; }
+      const c = await u.prompt('Reset the PIN', [{ key: 'code', label: `${I().t('Code sent to')} ${req.to}` }]);
+      if (!c) return false;
+      try { await hub.cloud.codeVerify({ id: req.id, code: String(c.code || '').replace(/\D/g, '') }); } catch (e) { u.toast(e.message, 'bad'); return false; }
+      return createPin();
+    }
     const r = await u.prompt('Reset the PIN', [{ key: 'pw', label: 'Your password', type: 'password' }]);
     if (!r) return false;
     if (!(await hub.verify(r.pw, store.user.salt, store.user.hash))) { u.toast('Wrong password', 'bad'); return false; }
@@ -155,7 +167,75 @@
   const app = KH.app = { filterChild: '', route: '#/home', pages: KH.pages || {} };
   KH.pages = app.pages;
   const root = document.getElementById('app');
-  const PROTECTED = ['#/reimburse', '#/credentials'];
+  const PROTECTED = ['#/reimburse', '#/credentials', '#/c/payments'];
+
+  // ---------------- what other parent accounts see (the organiser's Control section) ----------------
+  const SECTIONS = [
+    { key: 'children', label: 'Children pages', routes: ['#/child/'] },
+    { key: 'school', label: 'School: records, marks, exams, goals and careers', routes: ['#/school', '#/add', '#/c/examDetails', '#/goals', '#/c/qualifications', '#/careers', '#/career/', '#/c/achievements', '#/c/diary', '#/c/meetings', '#/c/contacts', '#/read/'] },
+    { key: 'messages', label: 'Messages', routes: ['#/messages'] },
+    { key: 'plan', label: 'Calendar, exam dates and holidays', routes: ['#/calendar', '#/c/exams', '#/c/holidays'] },
+    { key: 'study', label: 'Study hours and reading', routes: ['#/study', '#/reading'] },
+    { key: 'health', label: 'Sick records and lunch box', routes: ['#/sick', '#/lunch'] },
+    { key: 'money', label: 'Money: payments and private courses', routes: ['#/c/payments', '#/c/courses'], off: true },
+    { key: 'family', label: 'Family events, photos and documents', routes: ['#/c/events', '#/photos', '#/c/documents'] },
+    { key: 'profiles', label: 'Child profiles and accounts', routes: ['#/c/children', '#/accounts'] },
+    { key: 'credentials', label: 'Credentials (saved logins)', routes: ['#/credentials'], off: true },
+  ];
+  const OWNER_ONLY = ['#/reimburse', '#/settings', '#/cloud', '#/control'];
+  // Settings > Features: parts of the app the family can switch off (they leave the menus, pages,
+  // Home and reminders). Encryption, backups and locking are always on.
+  const FEATURES = [
+    { key: 'school', label: 'School connection (updates, announcements, homework)', routes: ['#/school'] },
+    { key: 'messages', label: 'Messages', routes: ['#/messages'] },
+    { key: 'calendar', label: 'Calendar', routes: ['#/calendar'] },
+    { key: 'study', label: 'Study hours', routes: ['#/study'] },
+    { key: 'reading', label: 'Reading and the family library', routes: ['#/reading', '#/read/'] },
+    { key: 'goals', label: 'Goals', routes: ['#/goals'] },
+    { key: 'careers', label: 'Careers and future paths', routes: ['#/careers', '#/career/'] },
+    { key: 'health', label: 'Sick records', routes: ['#/sick'] },
+    { key: 'lunch', label: 'Lunch box', routes: ['#/lunch'] },
+    { key: 'money', label: 'Payments and private courses', routes: ['#/c/payments', '#/c/courses'] },
+    { key: 'reimburse', label: 'Company reimbursement', routes: ['#/reimburse'] },
+    { key: 'photos', label: 'Photos', routes: ['#/photos'] },
+    { key: 'documents', label: 'Documents', routes: ['#/c/documents'] },
+    { key: 'diary', label: "Children's private diaries", routes: ['#/mydiary'] },
+    { key: 'credentials', label: 'Credentials (saved logins)', routes: ['#/credentials'] },
+  ];
+  const features = KH.features = {
+    list: FEATURES,
+    on(key) { return ((store.settings().features || {})[key]) !== false; },
+    routeOff(route) { return FEATURES.some(f => !features.on(f.key) && f.routes.some(r => (r.endsWith('/') ? route.startsWith(r) : route === r || route.startsWith(r + '/')))); },
+  };
+  const matches = (route, r) => (r.endsWith('/') ? route.startsWith(r) : route === r || route.startsWith(r + '/'));
+  const access = KH.access = {
+    SECTIONS, OWNER_ONLY,
+    ownerId() {
+      const s = store.settings();
+      return ((s.cloud || {}).ownerUserId) || ((store.data.users || []).find(x => x.role === 'parent') || {}).id || null;
+    },
+    isOwner() { return !!store.user && store.user.role === 'parent' && store.user.id === access.ownerId(); },
+    // money stays out of reminders and the calendar for a parent account that does not see it
+    noMoney() { return !features.on('money') || (!!store.user && store.user.role === 'parent' && !access.isOwner() && !access.shown('money')); },
+    shown(key) {
+      const c = store.settings().control || {};
+      const sec = SECTIONS.find(x => x.key === key);
+      return c[key] !== undefined ? !!c[key] : !(sec && sec.off);
+    },
+    allows(route) {
+      if (features.routeOff(route)) return false;
+      if (!store.user || store.user.role !== 'parent' || access.isOwner()) return true;
+      if (OWNER_ONLY.some(r => matches(route, r))) return false;
+      for (const sec of SECTIONS) if (sec.routes.some(r => matches(route, r))) return access.shown(sec.key);
+      return true;
+    },
+  };
+  // the menu without the parts this account does not see (and without headings left empty)
+  function allowedNav(items) {
+    const flat = [].concat(...items.map(x => (Array.isArray(x) ? x : [x]))).filter(Boolean);
+    const kept = flat.filter(el => !(el.tagName === 'A' && el.getAttribute('href') && !access.allows(el.getAttribute('href'))));
+    return kept.filter((el, i) => !(el.classList && el.classList.contains('group') && (!kept[i + 1] || (kept[i + 1].classList && kept[i + 1].classList.contains('group')))));
+  }
 
   app.go = hash => { if (location.hash === hash) app.refresh(); else location.hash = hash; };
   app.isParent = () => store.user && store.user.role === 'parent';
@@ -172,16 +252,16 @@
     const badge = unread ? h('span', { class: 'badge' }, String(unread)) : null;
     if (!app.isParent()) {
       const me = store.user.childId;
-      return [
+      return allowedNav([
         navLink(`#/child/${me}`, 'My page', 'home'), navLink('#/school', 'School (SABIS)', 'school', badge), navLink('#/calendar', 'My calendar', 'calendar'),
         navLink('#/goals', 'My goals', 'flag'), navLink('#/messages', 'Messages', 'chat', msgBadge()),
         h('div', { class: 'group' }, 'Study'), navLink('#/study', 'Study hours', 'chart'), navLink('#/reading', 'Reading & books', 'book'),
         h('div', { class: 'group' }, 'School'), navLink('#/c/exams', 'Exam dates', 'flag'), navLink('#/c/examDetails', 'Exam right & wrong', 'check'),
         navLink('#/c/achievements', 'Achievements', 'star'), navLink('#/c/qualifications', 'Qualifications', 'doc'), navLink('#/c/diary', 'School diary', 'book'), navLink(`#/career/${me}`, 'My future path', 'path'),
         h('div', { class: 'group' }, 'Me'), navLink('#/mydiary', 'My diary', 'lock'), navLink('#/sick', 'Not feeling well', 'heart'), navLink('#/lunch', 'Lunch box', 'lunch'), navLink('#/me', 'My password', 'key'),
-      ];
+      ]);
     }
-    return [
+    return allowedNav([
       navLink('#/home', 'Home', 'home'),
       h('div', { class: 'group' }, 'Children'), kids.map(c => navLink(`#/child/${c.id}`, c.name, h('span', { class: 'dot', style: { background: KH.kidColor(c) } }))),
       navLink('#/school', 'School (SABIS)', 'school', badge), navLink('#/messages', 'Messages', 'chat', msgBadge()), navLink('#/add', 'Add marks', 'plus'),
@@ -192,15 +272,15 @@
       h('div', { class: 'group' }, 'Health & daily'), navLink('#/sick', 'Sick records', 'heart'), navLink('#/lunch', 'Lunch box', 'lunch'),
       h('div', { class: 'group' }, 'Money'), navLink('#/c/payments', 'Payments', 'wallet'), navLink('#/c/courses', 'Private courses', 'book'), navLink('#/reimburse', 'Company reimbursement', 'lock'),
       h('div', { class: 'group' }, 'Family'), navLink('#/c/events', 'Family events', 'star'), navLink('#/photos', 'Photos', 'photo'), navLink('#/c/documents', 'Documents', 'doc'),
-      h('div', { class: 'group' }, 'Setup'), navLink('#/c/children', 'Child profiles', 'users'), navLink('#/accounts', 'Accounts', 'user'), navLink('#/credentials', 'Credentials', 'key'), navLink('#/settings', 'Settings', 'gear'),
-    ];
+      h('div', { class: 'group' }, 'Setup'), navLink('#/c/children', 'Child profiles', 'users'), navLink('#/accounts', 'Accounts', 'user'), navLink('#/credentials', 'Credentials', 'key'), navLink('#/cloud', 'Family cloud', 'sync'), navLink('#/control', 'Control', 'eye'), navLink('#/settings', 'Settings', 'gear'),
+    ]);
   }
 
   function titleFor(route) {
     const m = route.match(/^#\/c\/(\w+)/);
     if (m && KH.schema[m[1]]) return KH.schema[m[1]].title;
     const map = { '#/home': 'Home', '#/add': 'Add marks', '#/calendar': 'Calendar', '#/study': 'Study hours', '#/reading': 'Reading & books', '#/reimburse': 'Company reimbursement',
-      '#/photos': 'Photos', '#/settings': 'Settings', '#/accounts': 'Accounts', '#/careers': 'Careers & paths', '#/me': 'My password', '#/lunch': 'Lunch box', '#/sick': 'Sick records',
+      '#/photos': 'Photos', '#/settings': 'Settings', '#/cloud': 'Family cloud', '#/control': 'Control', '#/accounts': 'Accounts', '#/careers': 'Careers & paths', '#/me': 'My password', '#/lunch': 'Lunch box', '#/sick': 'Sick records',
       '#/school': 'School (SABIS)', '#/credentials': 'Credentials', '#/goals': app.isParent() ? 'Goals' : 'My goals', '#/mydiary': 'My diary', '#/messages': 'Messages' };
     if (route.startsWith('#/messages')) return 'Messages';
     if (route === '#/sick' && !app.isParent()) return 'Not feeling well';
@@ -253,7 +333,7 @@
     tools.appendChild(h('button', { class: 'btn icon pc-only', 'aria-label': dark ? 'Switch to light mode' : 'Switch to dark mode', title: dark ? 'Light mode' : 'Dark mode',
       onclick: () => app.setTheme(dark ? 'light' : 'dark') }, u.icon(dark ? 'sun' : 'moon')));
     const opts = app.isParent() ? {} : { childId: store.user.childId, parent: false };
-    const n = A.alerts(store.data, u.today(), opts).filter(a => a.severity === 'high' || a.severity === 'medium').length;
+    const n = A.alerts(store.data, u.today(), Object.assign({}, opts, { noMoney: access.noMoney() })).filter(a => a.severity === 'high' || a.severity === 'medium').length;
     if (n) tools.appendChild(h('a', { class: 'chip medium alerts-chip', href: app.isParent() ? '#/home' : `#/child/${store.user.childId}`, 'aria-label': `${n} things to look at` }, u.icon('bell'), h('span', { class: 'chip-long' }, `${n} things to look at`), h('span', { class: 'chip-short', 'data-noi18n': '1' }, String(n))));
     if (app.isParent() && KH.sabisButton && !app.route.startsWith('#/school')) tools.appendChild(h('span', { class: 'pc-only' }, KH.sabisButton()));
     return tools;
@@ -342,7 +422,7 @@
     root.innerHTML = '';
     root.appendChild(layout);
     try {
-      if (PROTECTED.includes(app.route) && !lock.unlocked()) content.appendChild(lockedView());
+      if (PROTECTED.includes(app.route) && access.allows(app.route) && !lock.unlocked()) content.appendChild(lockedView());
       else content.appendChild(routeTo(app.route));
     } catch (e) {
       console.error(e);
@@ -361,7 +441,7 @@
   };
 
   function lockedView() {
-    setTimeout(() => { if (PROTECTED.includes(app.route) && !lock.unlocked()) { lock.padFor = app.route; lock.require(); } }, 120);
+    setTimeout(() => { if (PROTECTED.includes(app.route) && access.allows(app.route) && !lock.unlocked()) { lock.padFor = app.route; lock.require(); } }, 120);
     return h('div', { class: 'card', style: { maxWidth: '460px', textAlign: 'center', padding: '40px 30px' } },
       h('div', { style: { width: '64px', height: '64px', margin: '0 auto 14px', borderRadius: '20px', background: 'var(--accentsoft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, u.icon('lock')),
       h('h2', null, 'This page is locked'), h('p', { class: 'muted' }, 'Enter your PIN to open it. It locks again after 5 minutes or when the app is minimised.'),
@@ -372,6 +452,9 @@
     const P = app.pages;
     let m;
     if (route === '#/home') return P.dashboard();
+    if (features.routeOff(route)) return u.section('Switched off', h('p', { class: 'muted', style: { marginTop: 0 } }, 'This part of the app is switched off in Settings > Features.'));
+    if (!access.allows(route)) return u.section('Not on your account', h('p', { class: 'muted', style: { marginTop: 0 } }, 'This section is not shown on your account. The family organiser chooses what each parent account sees.'));
+    if (route === '#/control') return P.control();
     if ((m = route.match(/^#\/child\/([\w-]+)(?:\/(.*))?/))) return P.child(m[1], m[2]);
     if ((m = route.match(/^#\/career\/([\w-]+)/))) return P.career(m[1]);
     if (route === '#/careers') return P.careers();
@@ -384,6 +467,7 @@
     if (route === '#/credentials') return P.credentials();
     if (route === '#/photos') return P.photos();
     if (route === '#/settings') return P.settings();
+    if (route === '#/cloud' || route === '#/settings/cloud') return P.cloud();
     if (route === '#/accounts') return P.accounts();
     if (route === '#/me') return P.me();
     if (route === '#/lunch') return P.lunch();
@@ -484,6 +568,7 @@
           return showRecovery(r.recovery, () => signIn((store.data.users || []).find(x => x.id === user.id) || user, remember.checked), true);
         } catch (e) { msg.textContent = KH.i18n.t(e.message); return; }
       }
+      if (KH.cloudUI && !(await KH.cloudUI.gate(user))) return;
       signIn(user, remember.checked);
     }
     const body = h('div');
@@ -660,7 +745,7 @@
     const userIn = h('input', { type: 'text', placeholder: 'Username' });
     const passIn = h('input', { type: 'password', placeholder: 'Password', onkeydown: e => { if (e.key === 'Enter') go(); } });
     const msg = err();
-    const place = where === 'gdrive' ? 'Google Drive' : where === 'onedrive' ? 'OneDrive' : 'the data folder';
+    const place = where === 'family-cloud' ? 'the family cloud' : where === 'gdrive' ? 'Google Drive' : where === 'onedrive' ? 'OneDrive' : 'the data folder';
     async function go() {
       msg.textContent = '';
       try {
@@ -706,6 +791,7 @@
       list,
       h('div', { class: 'row', style: { marginTop: '12px' } },
         h('button', { class: 'btn', onclick: async () => { const r = await hub.boot(); showSetup(r.roots || await hub.roots()); } }, 'Start fresh instead'),
+        hub.cloud ? h('button', { class: 'btn', onclick: () => KH.cloudUI.showJoin(cloudKit()) }, u.icon('sync'), 'Join my family instead') : null,
         h('div', { class: 'spacer' }),
         h('button', { class: 'btn primary', onclick: async () => { const r = await hub.useFound(pick.dir); handleBoot(r); } }, 'Use this data'))));
   }
@@ -730,7 +816,9 @@
           roots.map(r => h('div', { class: `choice ${r === root ? 'on' : ''}`, onclick: () => { root = r; draw(); } }, u.icon(r.kind === 'local' ? 'home' : 'school'),
             h('div', null, h('b', null, r.label), h('div', { class: 'small muted', 'data-noi18n': '1', style: { wordBreak: 'break-all' } }, r.path)))),
           !roots.some(r => r.kind !== 'local') ? h('div', { class: 'warnbox', style: { marginBottom: '10px' } }, 'No OneDrive or Google Drive folder was found on this PC. Install one of them and sign in to use the same data on several PCs, or keep the data on this PC for now.') : null,
-          h('div', { class: 'row' }, h('div', { class: 'spacer' }), h('button', { class: 'btn primary', onclick: () => { step = 2; draw(); } }, 'Next'))));
+          h('div', { class: 'row' },
+            hub.cloud ? h('button', { class: 'btn', onclick: () => KH.cloudUI.showJoin(cloudKit()) }, u.icon('sync'), 'Join my family (code from a family device)') : null,
+            h('div', { class: 'spacer' }), h('button', { class: 'btn primary', onclick: () => { step = 2; draw(); } }, 'Next'))));
       } else if (step === 2) {
         box.appendChild(h('div', null, h('h1', null, 'Create the parent account'),
           h('p', { class: 'muted', style: { marginTop: 0 } }, 'This password also unlocks the encrypted data on a new PC. Logins for the children can be added afterwards.'),
@@ -778,9 +866,14 @@
   }
   KH.showRecovery = showRecovery;
 
+  // the pieces the family cloud's start-up screens use
+  function cloudKit() { return { screen, logo, langPick, err, back: () => boot(), done: () => boot() }; }
+  KH.cloudKit = cloudKit;
+
   function handleBoot(r) {
     store.info = r.info || {};
     store.legacy = r.state === 'legacy';
+    if (r.state === 'cloud' && KH.cloudUI) return KH.cloudUI.showWait(cloudKit(), r.cloud);
     if (r.state === 'setup') return showSetup(r.roots);
     if (r.state === 'found') return showFound(r.found);
     if (r.state === 'locked') return showUnlock(r.where);
@@ -789,6 +882,7 @@
     let remembered = null;
     try { remembered = localStorage.getItem('kh.remember'); } catch (e) { /* ignore */ }
     const user = !store.legacy && remembered && (store.data.users || []).find(x => x.id === remembered);
+    if (user && KH.cloudUI) return KH.cloudUI.gate(user).then(okd => (okd ? signIn(user, true) : showLogin()));
     if (user) return signIn(user, true);
     showLogin(store.legacy ? 'This version encrypts the family data. A parent signs in once to finish.' : '');
   }
@@ -800,6 +894,11 @@
     try { r = await hub.boot(); } catch (e) { r = { state: 'setup', roots: [] }; u.toast('Could not start: ' + e.message, 'bad'); }
     handleBoot(r);
   }
+
+  // notification sounds chosen in Settings (the PC plays them; a phone uses its own sound)
+  if (hub.onSound) hub.onSound(sd => {
+    try { const a = new Audio(`../assets/sounds/${String(sd.name).replace(/[^a-z]/g, '')}.wav`); a.volume = Math.max(0, Math.min(1, Number(sd.volume) || 0.8)); a.play().catch(() => {}); } catch (e) { /* no sound */ }
+  });
 
   hub.onExternal(d => {
     if (!d) return;

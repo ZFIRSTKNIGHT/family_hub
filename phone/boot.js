@@ -1,5 +1,6 @@
-// Phone start-up: checks this browser can run the app, starts the service worker, signs in to
-// Microsoft, finds the family folder in OneDrive, then loads the app itself (the PC's screens).
+// Phone start-up: checks this browser can run the app, starts the service worker, connects this
+// phone to the family cloud (a code or QR from a family device, once), then loads the app itself
+// (the PC's screens). The family data stays encrypted: a parent unlocks it once on this phone.
 (function () {
   'use strict';
   const KH = window.KH = window.KH || {};
@@ -7,57 +8,9 @@
   const CFG = window.FH_CONFIG || {};
   const u = KH.u, h = u.h, I = () => KH.i18n;
   const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-  const TEST = LOCAL && localStorage.getItem('fh.graphTest') === '1';
-  const here = p => new URL(p, location.href).href;
-  const FOLDER_KEY = 'fh.folder';
-
-  // ---------------- Microsoft sign-in (msauth.js) ----------------
-  const Auth = window.FHAuth;
-  let account = null;
-  const SIGNIN_HINT = () => (account || Auth.lastAccount() || {}).username || undefined;
-
-  // ---------------- the family folder in OneDrive ----------------
-  const readFolder = () => { try { return JSON.parse(localStorage.getItem(FOLDER_KEY) || 'null'); } catch (e) { return null; } };
-  const keepFolder = f => localStorage.setItem(FOLDER_KEY, JSON.stringify(f));
-  const G = () => window.FHGraph;
-  async function describe(driveId, folderId) {
-    const m = await G().json('GET', `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}`);
-    const owner = ((m.shared && m.shared.owner && m.shared.owner.user) || (m.createdBy && m.createdBy.user) || {}).displayName || '';
-    return { driveId, folderId, name: m.name, owner, modified: m.lastModifiedDateTime || '' };
-  }
-  async function hasKeys(driveId, folderId) {
-    const kids = await G().json('GET', `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}/children?$top=200`);
-    return (kids.value || []).some(k => k.name === 'family-hub-keys.json');
-  }
-  // the family data in this account's OneDrive, and folders others shared with it
-  async function findFolders() {
-    const out = [];
-    const add = async (driveId, folderId) => {
-      if (!driveId || !folderId || out.some(f => f.driveId === driveId && f.folderId === folderId)) return;
-      try { out.push(await describe(driveId, folderId)); } catch (e) { /* not reachable */ }
-    };
-    try {
-      const s = await G().json('GET', "/me/drive/root/search(q='family-hub-keys.json')?$top=50");
-      for (const it of (s.value || [])) if (it.name === 'family-hub-keys.json' && it.parentReference) await add(it.parentReference.driveId, it.parentReference.id);
-    } catch (e) { if (e.code === 'offline') throw e; }
-    try {
-      const sh = await G().json('GET', '/me/drive/sharedWithMe');
-      for (const it of (sh.value || [])) {
-        const r = it.remoteItem || it;
-        if (!r.folder || !r.parentReference) continue;
-        try { if (await hasKeys(r.parentReference.driveId, r.id)) await add(r.parentReference.driveId, r.id); } catch (e) { /* skip */ }
-      }
-    } catch (e) { /* not offered for this account */ }
-    return out;
-  }
-  async function folderFromLink(link) {
-    const b64 = btoa(unescape(encodeURIComponent(String(link).trim()))).replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
-    const it = await G().json('GET', `/shares/u!${b64}/driveItem`);
-    if (!it.folder) throw new Error('That link is not to a folder.');
-    const driveId = (it.parentReference || {}).driveId;
-    if (!(await hasKeys(driveId, it.id))) throw new Error('That folder has no Family Hub data in it.');
-    return describe(driveId, it.id);
-  }
+  const TEST_CLOUD = LOCAL ? localStorage.getItem('fh.cloudTest') : '';
+  const Cloud = () => window.FHCloud;
+  let swReg = null;
 
   // ---------------- start-up screens (the PC's sign-in look) ----------------
   function screen(card) {
@@ -79,79 +32,75 @@
   const standalone = () => window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
   let installEvent = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; if (redraw) redraw(); });
+  // iPadOS reports itself as a Mac, so a touch screen counts too
+  const apple = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   function installTip() {
-    if (standalone()) return null;
-    if (installEvent) return h('button', { class: 'btn', style: Object.assign({ marginTop: '10px' }, wide), onclick: async () => { installEvent.prompt(); installEvent = null; } }, u.icon('plus'), 'Install the app on this phone');
-    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return h('p', { class: 'small muted', style: { textAlign: 'center', marginBottom: 0 } }, 'Tip: tap Share, then "Add to Home Screen", to keep the app on this iPhone.');
-    return null;
+    if (standalone() || !installEvent) return null;
+    return h('button', { class: 'btn', style: Object.assign({ marginTop: '10px' }, wide), onclick: async () => { installEvent.prompt(); installEvent = null; } }, u.icon('plus'), 'Install the app on this phone');
   }
+  // On an iPhone the Home Screen app keeps its own data, apart from Safari: a phone that joins in
+  // Safari and is added to the Home Screen afterwards would need a second code. So: Home Screen first.
+  function appleFirst() {
+    if (standalone() || !apple()) return null;
+    return h('div', { class: 'note small', style: { margin: '0 0 12px' } }, 'On an iPhone, first add the app to the Home Screen: tap Share, then "Add to Home Screen". Then open Family Hub from the Home Screen and join there. The Home Screen app keeps its own data, apart from Safari, and iPhone notifications need it.');
+  }
+  const errLine = () => h('div', { class: 'small', style: { color: 'var(--bad)', minHeight: '18px', margin: '4px 0 8px' } });
 
-  function connectScreen(message) {
-    redraw = () => connectScreen(message);
+  function joinScreen(code, message) {
+    redraw = () => joinScreen(codeIn.value, message);
+    const codeIn = h('input', { type: 'text', value: code || '', placeholder: 'ABCD-EFGH', maxlength: '9', autocapitalize: 'characters', style: { fontSize: '22px', letterSpacing: '.15em', textAlign: 'center', textTransform: 'uppercase' } });
+    const nameIn = h('input', { type: 'text', placeholder: 'For example: My phone' });
+    const msg = errLine();
+    if (message) msg.textContent = I().t(message);
+    async function go() {
+      msg.textContent = '';
+      const c = codeIn.value.toUpperCase().replace(/[^0-9A-Z]/g, '');
+      if (c.length !== 8) { msg.textContent = I().t('The code has 8 letters and numbers, like ABCD-EFGH.'); return; }
+      if (!nameIn.value.trim()) { msg.textContent = I().t('Give this phone a name, so it can be recognised in the list of devices.'); return; }
+      try {
+        const st = await Cloud().join(c, nameIn.value.trim());
+        history.replaceState(null, '', location.pathname + location.search);
+        if (st.status === 'pending') return approvalScreen();
+        return start();
+      } catch (e) { msg.textContent = I().t(e.message); }
+    }
     screen(h('div', { class: 'login' }, langPick(), logo(),
-      h('h1', null, 'M. Ebrahim Family Hub'),
-      h('p', { class: 'muted', style: { marginTop: 0 } }, 'Sign in with the Microsoft account that keeps the family data in its OneDrive. Everything stays encrypted: this phone can read it only after a parent unlocks it once.'),
-      message ? h('div', { class: 'errbox', style: { marginBottom: '12px' } }, message) : null,
-      h('button', { class: 'btn primary', style: wide, onclick: () => Auth.begin({ prompt: 'select_account', loginHint: SIGNIN_HINT() }) }, u.icon('key'), 'Sign in with Microsoft'),
+      h('h1', null, 'Join your family'),
+      h('p', { class: 'muted', style: { marginTop: 0 } }, 'On a family device, the organiser opens Family cloud > Add a device. Scan the square shown there with this phone\'s camera, or type its code here.'),
+      appleFirst(),
+      h('label', { class: 'f' }, h('span', null, 'Code from the family device'), codeIn),
+      h('label', { class: 'f' }, h('span', null, 'Name of this phone'), nameIn),
+      msg,
+      h('button', { class: 'btn primary', style: wide, onclick: go }, 'Join'),
       installTip()));
+    setTimeout(() => (code ? nameIn : codeIn).focus(), 60);
   }
-  function waiting(title, text) {
-    redraw = () => waiting(title, text);
-    screen(h('div', { class: 'login' }, langPick(), logo(), h('h1', null, title), h('p', { class: 'muted', style: { marginTop: 0 } }, text), h('div', { class: 'spinner' })));
+  function approvalScreen(message) {
+    redraw = () => approvalScreen(message);
+    const codeIn = h('input', { type: 'text', inputmode: 'numeric', placeholder: '123 456', style: { fontSize: '22px', letterSpacing: '.2em', textAlign: 'center' } });
+    const msg = errLine();
+    if (message) msg.textContent = I().t(message);
+    screen(h('div', { class: 'login' }, langPick(), logo(),
+      h('h1', null, 'Waiting for approval'),
+      h('p', { class: 'muted', style: { marginTop: 0 } }, "The family organiser approves new devices. A code was sent to the organiser's e-mail: type it here. Or the organiser approves this phone in Family cloud > Devices, then tap Check again."),
+      h('label', { class: 'f' }, h('span', null, 'Approval code'), codeIn), msg,
+      h('button', { class: 'btn primary', style: wide, onclick: async () => {
+        try { await Cloud().approve(codeIn.value.replace(/\D/g, '')); start(); } catch (e) { msg.textContent = I().t(e.message); }
+      } }, 'Approve'),
+      h('button', { class: 'btn', style: Object.assign({ marginTop: '8px' }, wide), onclick: async () => {
+        try { const r = await Cloud().me(); if (r.device.status === 'active') start(); else msg.textContent = I().t('Not approved yet.'); } catch (e) { msg.textContent = I().t(e.message); }
+      } }, 'Check again')));
   }
-  function chooseFolder() {
-    return new Promise(resolve => {
-      const done = f => { keepFolder(f); resolve(f); };
-      async function look() {
-        waiting('Finding your family data', 'Looking in OneDrive…');
-        let found = [], err = '';
-        try { found = await findFolders(); } catch (e) { err = e.message; }
-        if (found.length === 1) return done(found[0]);
-        show(found, err);
-      }
-      function show(found, err) {
-        redraw = () => show(found, err);
-        let pick = found[0] || null;
-        const link = h('input', { type: 'url', placeholder: 'https://1drv.ms/f/…', autocomplete: 'off' });
-        const msg = h('div', { class: 'small', style: { color: 'var(--bad)', minHeight: '18px', margin: '6px 0' } }, err || '');
-        const list = h('div');
-        const drawList = () => {
-          list.innerHTML = '';
-          for (const f of found) {
-            list.appendChild(h('div', { class: `choice ${f === pick ? 'on' : ''}`, onclick: () => { pick = f; drawList(); } }, u.icon('school'),
-              h('div', null, h('b', { 'data-noi18n': '1' }, f.name), h('div', { class: 'small muted' }, f.owner ? `OneDrive of ${f.owner}` : 'OneDrive'),
-                f.modified ? h('div', { class: 'small muted' }, `Changed ${new Date(f.modified).toLocaleString(u.locale())}`) : null)));
-          }
-          I().apply(list);
-        };
-        drawList();
-        const who = account || {};
-        screen(h('div', { class: 'login' }, langPick(), logo(),
-          h('h1', null, found.length ? 'Which family data?' : 'No family data found'),
-          found.length ? list : h('div', null,
-            h('p', { class: 'muted', style: { marginTop: 0 } }, `The OneDrive of ${who.name || who.username || 'this account'} has no M. Ebrahim Family Hub folder.`),
-            h('p', { class: 'small muted' }, 'If the data is in another person\'s OneDrive, they share the "M. Ebrahim Family Hub" folder with this Microsoft account (Share, Can edit). Then paste the folder\'s link here, or open the invitation and choose "Add shortcut to My files".')),
-          found.length ? h('button', { class: 'btn primary', style: Object.assign({ marginTop: '6px' }, wide), onclick: () => pick && done(pick) }, 'Use this folder') : null,
-          h('label', { class: 'f', style: { marginTop: '14px' } }, h('span', null, 'Link to the folder (optional)'), link), msg,
-          h('button', { class: 'btn', style: wide, onclick: async () => {
-            if (!link.value.trim()) { look(); return; }
-            msg.textContent = '';
-            try { done(await folderFromLink(link.value)); } catch (e) { msg.textContent = I().t(e.message); }
-          } }, 'Look again'),
-          h('p', { class: 'small', style: { textAlign: 'center', marginBottom: 0 } }, h('a', { onclick: async () => { await Auth.signOut(); Auth.begin({ prompt: 'select_account' }); } }, 'Use another Microsoft account'))));
-      }
-      look();
-    });
+  function signedOutScreen() {
+    redraw = signedOutScreen;
+    screen(h('div', { class: 'login' }, langPick(), logo(), h('h1', null, 'This phone was signed out'),
+      h('p', { class: 'muted', style: { marginTop: 0 } }, 'The family organiser signed this phone out of the family cloud. To use it again, ask for a new code.'),
+      h('button', { class: 'btn primary', style: wide, onclick: async () => { await Cloud().keep(null); joinScreen(''); } }, 'Join again with a new code')));
   }
   function unsupported() {
     redraw = unsupported;
     screen(h('div', { class: 'login' }, langPick(), logo(), h('h1', null, 'Open this page in Safari or Chrome'),
       h('p', { class: 'muted', style: { marginTop: 0 } }, 'This browser cannot keep the app on the phone (it may be the browser inside another app). Open the link in Safari on an iPhone or in Chrome on Android, then add it to the Home Screen.')));
-  }
-  function notConfigured() {
-    redraw = notConfigured;
-    screen(h('div', { class: 'login' }, langPick(), logo(), h('h1', null, 'Almost ready'),
-      h('p', { class: 'muted', style: { marginTop: 0 } }, 'This copy of the app does not have its Microsoft app ID yet, so it cannot reach OneDrive.')));
   }
 
   // ---------------- the app ----------------
@@ -178,38 +127,37 @@
     reg.update().catch(() => {});
     return reg;
   }
+  // a notification tapped while the app was closed opens it on the right page
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', ev => { const d = ev.data || {}; if (d.type === 'fh-nav' && d.nav) location.hash = d.nav; });
 
   window.FHPhone = {
-    account: () => account,
-    folder: readFolder,
-    signIn: () => Auth.begin({ prompt: 'select_account', loginHint: SIGNIN_HINT(), back: location.href }),
-    async signOut() { await Auth.signOut(); localStorage.removeItem(FOLDER_KEY); location.reload(); },
-    changeFolder: () => { localStorage.removeItem(FOLDER_KEY); location.reload(); },
+    registration: () => swReg,
+    enablePush: () => Cloud().subscribePush(swReg),
+    pushReady: () => Cloud().pushReady(swReg),
+    async leave() { await Cloud().signOut(); location.reload(); },
   };
 
+  let loaded = false;
   async function start() {
     I().setLang(localStorage.getItem('kh.lang') === 'ar' ? 'ar' : 'en');
     if (!('serviceWorker' in navigator) || !window.crypto || !crypto.subtle || !window.indexedDB) return unsupported();
-    try { await serviceWorker(); } catch (e) { return unsupported(); }
-    if (!CFG.clientId) return notConfigured();
-    G().configure(Object.assign(TEST ? { baseUrl: here('graph/v1.0') } : {}, { getToken: force => Auth.token(force) }));
-    const err = Auth.takeError();
-    if (!(await Auth.signedIn())) {
-      // signed in on this phone before: straight back in, without typing while Microsoft still knows the phone
-      const last = Auth.lastAccount();
-      if (last && last.username && !err && Date.now() - Number(localStorage.getItem('fh.authRetry') || 0) > 2 * 60 * 1000) {
-        localStorage.setItem('fh.authRetry', String(Date.now()));
-        return Auth.begin({ prompt: 'none', loginHint: last.username });
-      }
-      return connectScreen(err && !err.silent && err.error !== 'access_denied' ? I().t(err.text || 'The Microsoft sign-in did not finish. Try again.') : '');
+    try { swReg = await serviceWorker(); } catch (e) { return unsupported(); }
+    Cloud().setBase(TEST_CLOUD || CFG.cloudUrl || '');
+    const code = (location.hash.match(/join=([A-Za-z0-9-]{8,9})/) || [])[1] || '';
+    let st = await Cloud().state();
+    if (!st || !st.token) return joinScreen(code);
+    if (code) history.replaceState(null, '', location.pathname + location.search);
+    if (st.revoked) return signedOutScreen();
+    if (st.status === 'pending') {
+      try { await Cloud().me(); } catch (e) { if (e.code === 'revoked') return signedOutScreen(); }
+      st = await Cloud().state();
+      if (st.status === 'pending') return approvalScreen();
     }
-    account = await Auth.account();
-    let folder = readFolder();
-    if (!folder) folder = await chooseFolder();
-    G().useFolder(folder);
-    CFG.folderName = folder.name;
+    CFG.folderName = st.familyName || 'family cloud';
     redraw = null;
+    if (loaded) return;
+    loaded = true;
     await loadScripts(CFG.appScripts || []);
   }
-  start().catch(e => connectScreen(String((e && e.message) || e)));
+  start().catch(e => joinScreen('', String((e && e.message) || e)));
 })();

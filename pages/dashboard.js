@@ -97,9 +97,9 @@
     const data = KH.store.data;
     const kids = KH.store.children();
     const hide = KH.lock.hidden();
-    const alerts = A.alerts(data, u.today(), { hideAmounts: hide });
+    const alerts = A.alerts(data, u.today(), { hideAmounts: hide, noMoney: KH.access.noMoney() });
     const trends = A.commonTrends(data);
-    const upcoming = A.calendarItems(data, { hideAmounts: hide }).filter(i => i.date >= u.today() && A.daysBetween(u.today(), i.date) <= 21).slice(0, 14);
+    const upcoming = A.calendarItems(data, { hideAmounts: hide, noMoney: KH.access.noMoney() }).filter(i => i.date >= u.today() && A.daysBetween(u.today(), i.date) <= 21).slice(0, 14);
     const first = String(KH.store.user.displayName || KH.store.user.username || '').split(/\s+/)[0];
     const latest = kids.map(c => A.latestSummary(data, c.id)).filter(Boolean)[0];
     const wrap = h('div');
@@ -122,7 +122,7 @@
           h('button', { class: 'btn', onclick: () => KH.app.go('#/add') }, '+ Add marks'),
           h('button', { class: 'btn', onclick: () => KH.crud.edit('exams') }, '+ Exam date'),
           h('button', { class: 'btn', onclick: () => KH.pages.pasteSchedule() }, 'Paste exam schedule'),
-          h('button', { class: 'btn', onclick: () => KH.crud.edit('payments') }, '+ Payment'),
+          KH.access.noMoney() ? null : h('button', { class: 'btn', onclick: () => KH.crud.edit('payments') }, '+ Payment'),
           h('button', { class: 'btn', onclick: () => KH.crud.edit('meetings') }, '+ School meeting'),
           h('button', { class: 'btn', onclick: () => KH.crud.edit('achievements') }, '+ Achievement'))))));
     return wrap;

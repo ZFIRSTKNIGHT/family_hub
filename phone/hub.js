@@ -1,10 +1,10 @@
 // window.hub for the phone: the same calls the PC's preload.js offers, so every screen works
-// unchanged. Instead of the PC's main process it uses OneDrive (FHGraph), the family key kept
-// on this phone (FHCrypto + FHdb), and the same rules as the PC: storage.js (merge, via the
+// unchanged. Instead of the PC's main process it uses the family cloud (FHCloud), the family key
+// kept on this phone (FHCrypto + FHdb), and the same rules as the PC: storage.js (merge, via the
 // generated FHMerge), messages.js and diary.js.
 (function () {
   'use strict';
-  const C = window.FHCrypto, G = window.FHGraph, DB = window.FHdb, M = window.FHMerge;
+  const C = window.FHCrypto, G = window.FHCloud, DB = window.FHdb, M = window.FHMerge;
   const te = C.te, td = C.td;
   const CFG = window.FH_CONFIG || {};
   const DATA = 'family-hub-data.enc', KEYRING = 'family-hub-keys.json';
@@ -52,7 +52,7 @@
   }
   async function readKeyring() {
     const r = await G.download(KEYRING);
-    if (!r) throw new Error('There is no family data in this OneDrive folder.');
+    if (!r) throw new Error('There is no family data in the family cloud yet. Set it up on the family PC first.');
     const k = JSON.parse(td.decode(r.bytes));
     if (!Array.isArray(k.wraps)) k.wraps = [];
     return k;
@@ -84,7 +84,7 @@
   async function pull() {
     const c = await DB.get('files', DATA);
     const r = await G.download(DATA, c && c.bytes ? c.eTag : null);
-    if (!r) throw new Error('The family data file is missing from the OneDrive folder.');
+    if (!r) throw new Error('The family data is not in the family cloud yet. Set it up on the family PC first.');
     if (r.notModified) { dataETag = r.meta.eTag; return decryptData(c.bytes); }
     const d = await decryptData(r.bytes);
     await DB.putFile(DATA, { bytes: r.bytes, eTag: r.meta.eTag, keep: true });
@@ -149,15 +149,16 @@
     if (!dek || inFlight || document.hidden) return;
     try {
       const m = await G.meta(DATA);
-      if (!m || m.eTag === dataETag || inFlight) return;
+      if (!m || m.eTag === dataETag || inFlight) { if (m) { lastSync = Date.now(); syncError = null; } return; }
       const bytes = await G.bytesOf(m);
       const d = await decryptData(bytes);
       if (inFlight) return;
       await DB.putFile(DATA, { bytes, eTag: m.eTag, keep: true });
       dataETag = m.eTag;
       data = d;
+      lastSync = Date.now(); syncError = null;
       emit('external', d);
-    } catch (e) { /* offline or mid-sync: next time */ }
+    } catch (e) { syncError = { message: e.message, code: e.code || '' }; /* offline or mid-sync: next time */ }
   }
 
   // ================= files =================
@@ -268,6 +269,18 @@
     return Array.from(by.values());
   };
   const monthsBack = () => { const now = new Date(); return [new Date(now.getFullYear(), now.getMonth() - 1, 15).toISOString().slice(0, 7), now.toISOString().slice(0, 7)]; };
+  // other members learn about a new message even when their app is closed (the text travels encrypted)
+  async function sealNote(note) { return C.b64.to(await C.seal(dek, te.encode(JSON.stringify(note)))); }
+  async function notifyMessage(msgs, m) {
+    const chat = msgs.chat(m.chat);
+    const to = msgs.members(chat).filter(id => id !== m.from).map(id => `user:${id}`);
+    if (!to.length) return;
+    const from = msgs.users().find(x => x.id === m.from) || {};
+    const group = chat.kind !== 'direct' ? ` · ${chat.kind === 'family' ? 'Family' : chat.kind === 'parents' ? 'Parents' : chat.kind === 'kids' ? 'Kids' : (chat.name || 'Group')}` : '';
+    const what = m.text ? m.text.slice(0, 140) : (m.files || []).some(f => f.kind === 'voice') ? 'Voice note' : (m.files || []).some(f => f.kind === 'image') ? 'Picture' : (m.files || []).length ? 'File' : m.card ? m.card.title : '';
+    await G.notify(to, 'message', await sealNote({ title: `${from.displayName || from.username || 'Message'}${group}`, body: what, nav: `#/messages/${m.chat}`, tag: `chat:${m.chat}` }));
+  }
+
   const MSG = {
     cache: new Map(), monthCache: new Map(), known: null,
     reset() { this.cache.clear(); this.monthCache.clear(); this.known = null; },
@@ -349,6 +362,7 @@
       DB.putFile(rel, { bytes: sealed, eTag: item.eTag }).catch(() => {});
       const mc = this.monthCache.get(chatId);
       if (mc && !mc.list.includes(at.slice(0, 7))) mc.list.push(at.slice(0, 7));
+      notifyMessage(this, msg).catch(() => {});
       return msg;
     },
     async remove(chatId, id, month) {
@@ -605,19 +619,59 @@
   void hiddenAt;
 
   // ================= the bridge =================
-  const info = () => ({ version: CFG.version || '', platform: 'phone', phone: true, dataDir: (CFG.folderName || 'OneDrive'), cloud: 'onedrive', loginItem: false, unlocked: !!dek, sabisRunning: false });
+  const info = () => ({ version: CFG.version || '', platform: 'phone', phone: true, dataDir: (CFG.folderName || 'family cloud'), cloud: 'family-cloud', loginItem: false, unlocked: !!dek, sabisRunning: false });
   const settings = () => (data && data.settings) || {};
 
+  let lastSync = 0, syncError = null;
+  const cloudApi = {
+    async status() {
+      const st = (await G.state()) || {};
+      return { connected: !!st.token && !st.revoked, family: st.familyName || '', deviceId: st.deviceId || '', deviceName: st.deviceName || '', role: st.role || '', deviceStatus: st.status || '',
+        revoked: !!st.revoked, lastSync, busy: inFlight > 0, progress: null, error: syncError, owner: st.owner || '', email: !!st.email, phone: true };
+    },
+    me: () => G.me(),
+    async joinCode(opts) {
+      const r = await G.call('POST', '/v1/join-codes', { json: { role: (opts && opts.role) || 'member' } });
+      const link = `${location.origin}${location.pathname}#join=${encodeURIComponent(r.code)}`;
+      let qr = '';
+      if (window.qrcode) { const q = window.qrcode(0, 'M'); q.addData(link); q.make(); qr = q.createSvgTag({ cellSize: 6, margin: 3, scalable: true }); }
+      return Object.assign(r, { link, qr });
+    },
+    devices: () => G.call('GET', '/v1/devices'),
+    signout: id => G.call('POST', '/v1/devices/signout', { json: { id } }),
+    role: (id, role) => G.call('POST', '/v1/devices/role', { json: { id, role } }),
+    approveDevice: id => G.call('POST', '/v1/devices/approve', { json: { id } }),
+    pending: () => G.call('GET', '/v1/approvals/pending'),
+    grant: (deviceId, subject) => G.call('POST', '/v1/approvals/grant', { json: { deviceId, subject } }),
+    alerts: () => G.call('GET', '/v1/alerts?limit=60'),
+    alertsSeen: upTo => G.call('POST', '/v1/alerts/seen', { json: { upTo } }),
+    usage: () => G.call('GET', '/v1/usage'),
+    rename: name => G.call('PUT', '/v1/devices/me', { json: { name } }).then(() => G.me()),
+    async syncNow() { await pollData(); return cloudApi.status(); },
+    codeRequest: b => G.call('POST', '/v1/codes', { json: { purpose: b.purpose, subject: b.subject, label: b.label } }),
+    codeVerify: b => G.call('POST', '/v1/codes/verify', { json: { id: b.id, code: b.code } }),
+    async approved(subject) {
+      const st = (await G.state()) || {};
+      if (!st.token || st.status !== 'active') return { approved: true, notConnected: true };
+      try { return await G.call('GET', `/v1/approvals?subject=${encodeURIComponent(subject)}`); } catch (e) { if (e.code === 'offline') return { approved: false, offline: true }; throw e; }
+    },
+    enablePush: () => (window.FHPhone ? window.FHPhone.enablePush() : Promise.resolve(false)),
+    pushReady: () => (window.FHPhone ? window.FHPhone.pushReady() : Promise.resolve(false)),
+    leave: () => (window.FHPhone ? window.FHPhone.leave() : Promise.resolve()),
+    onStatus: () => {}, onAlert: () => {},
+  };
+
   window.hub = {
+    cloud: cloudApi,
     info: async () => info(),
     async boot() {
-      if (!(await restoreKey())) return { state: 'locked', info: info(), where: 'onedrive' };
+      if (!(await restoreKey())) return { state: 'locked', info: info(), where: 'family-cloud' };
       let d = null;
       try { d = await pull(); } catch (e) {
         if (e instanceof DOMException || /operation-specific|decrypt|OperationError/i.test(String(e && (e.name + e.message)))) {
           // this phone's key no longer opens the folder (new family data?): join again
           await forgetKey();
-          return { state: 'locked', info: info(), where: 'onedrive' };
+          return { state: 'locked', info: info(), where: 'family-cloud' };
         }
         d = await cachedData().catch(() => null);
         if (!d) throw e;
@@ -660,7 +714,12 @@
       if (session.childId && (session.role !== s.role || session.childId !== s.childId)) DIARY.lockAll();
       const changed = session.userId !== (s.role ? s.userId || null : null);
       session = { role: s.role || null, childId: s.role === 'child' ? s.childId : null, userId: s.role ? (s.userId || null) : null };
-      if (changed) { MSG.known = null; if (session.userId) setTimeout(scanLoop, 500); }
+      if (changed) {
+        MSG.known = null;
+        if (session.userId) setTimeout(scanLoop, 500);
+        G.call('PUT', '/v1/devices/me', { json: { users: session.userId ? [session.userId] : [], app: CFG.version || '' } }).catch(() => {});
+        if (session.userId && window.FHPhone) window.FHPhone.pushReady().then(on => { if (on) window.FHPhone.enablePush().catch(() => {}); }).catch(() => {});
+      }
       return true;
     },
     resetOptions: async () => ({ email: false, parents: ((data && data.users) || []).filter(x => x.role === 'parent').map(p => ({ id: p.id, name: p.displayName || p.username, masked: '' })) }),
