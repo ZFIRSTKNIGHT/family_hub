@@ -168,6 +168,7 @@
       h('select', { style: { width: '220px' }, onchange: e => { const [y, t] = e.target.value.split('|'); termSel[child.id] = { year: y, term: t }; KH.app.refresh(); } },
         ts.slice().reverse().map(t => h('option', { value: `${t.year}|${t.term}`, selected: t.year === sel.year && t.term === sel.term }, `${t.term} ${t.year}`))),
       h('div', { class: 'spacer' }),
+      h('button', { class: 'btn', onclick: () => KH.app.go(`#/child/${child.id}/subjects`) }, u.icon('chart'), 'Subject analysis'),
       h('button', { class: 'btn', onclick: () => KH.app.go(`#/career/${child.id}`) }, u.icon('path'), 'Future path'),
       h('button', { class: 'btn', onclick: async () => { const rel = await window.hub.pdf(pdfHtml(child, s), `${child.name} ${s.term} ${s.year}`); if (rel) u.toast('PDF saved in the exports folder'); return rel; } }, u.icon('print'), 'Export PDF'),
       KH.app.isParent() ? h('button', { class: 'btn primary', onclick: () => { KH.pages.importPreset = { childId: child.id, year: s.year, term: s.term }; KH.app.go('#/add'); } }, '+ Add marks') : null));
@@ -288,9 +289,12 @@
       h('div', { class: 'muted', style: { fontWeight: 600 } }, line || (KH.app.isParent() ? 'Add the grade and school in the profile' : '')));
     const tabs = h('div', { class: 'tabs' },
       h('a', { class: t === 'overview' ? 'active' : '', href: `#/child/${id}` }, 'Overview'),
+      h('a', { class: t === 'subjects' ? 'active' : '', href: `#/child/${id}/subjects` }, 'Subjects'),
       h('a', { class: t === 'school' ? 'active' : '', href: `#/child/${id}/school` }, 'School (SABIS)'),
       h('a', { class: t === 'profile' ? 'active' : '', href: `#/child/${id}/profile` }, 'Profile & milestones'),
       h('a', { href: `#/career/${id}` }, 'Future path'));
-    return h('div', null, hero, tabs, t === 'profile' ? profile(child) : t === 'school' ? schoolTab(child) : overview(child));
+    // a child's own page opens with a big hello, the date and the time
+    const clock = !KH.app.isParent() && KH.shell && t === 'overview' ? KH.shell.hero(String(KH.store.user.displayName || child.name || '').split(/\s+/)[0], line || null) : null;
+    return h('div', null, clock, clock ? null : hero, tabs, t === 'profile' ? profile(child) : t === 'school' ? schoolTab(child) : t === 'subjects' ? KH.pages.subjectsTab(child) : overview(child));
   };
 })();

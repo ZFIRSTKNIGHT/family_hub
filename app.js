@@ -172,7 +172,7 @@
   // ---------------- what other parent accounts see (the organiser's Control section) ----------------
   const SECTIONS = [
     { key: 'children', label: 'Children pages', routes: ['#/child/'] },
-    { key: 'school', label: 'School: records, marks, exams, goals and careers', routes: ['#/school', '#/add', '#/c/examDetails', '#/goals', '#/c/qualifications', '#/careers', '#/career/', '#/c/achievements', '#/c/diary', '#/c/meetings', '#/c/contacts', '#/read/'] },
+    { key: 'school', label: 'School: records, marks, exams, goals and careers', routes: ['#/school', '#/subjects', '#/add', '#/c/examDetails', '#/goals', '#/c/qualifications', '#/careers', '#/career/', '#/c/achievements', '#/c/diary', '#/c/meetings', '#/c/contacts', '#/read/'] },
     { key: 'messages', label: 'Messages', routes: ['#/messages'] },
     { key: 'plan', label: 'Calendar, exam dates and holidays', routes: ['#/calendar', '#/c/exams', '#/c/holidays'] },
     { key: 'study', label: 'Study hours and reading', routes: ['#/study', '#/reading'] },
@@ -246,43 +246,17 @@
   }
 
   const msgBadge = () => (KH.msg && KH.msg.unread ? h('span', { class: 'badge' }, String(KH.msg.unread)) : null);
-  function nav() {
-    const kids = store.children();
-    const unread = KH.annUnread ? KH.annUnread() : 0;
-    const badge = unread ? h('span', { class: 'badge' }, String(unread)) : null;
-    if (!app.isParent()) {
-      const me = store.user.childId;
-      return allowedNav([
-        navLink(`#/child/${me}`, 'My page', 'home'), navLink('#/school', 'School (SABIS)', 'school', badge), navLink('#/calendar', 'My calendar', 'calendar'),
-        navLink('#/goals', 'My goals', 'flag'), navLink('#/messages', 'Messages', 'chat', msgBadge()),
-        h('div', { class: 'group' }, 'Study'), navLink('#/study', 'Study hours', 'chart'), navLink('#/reading', 'Reading & books', 'book'),
-        h('div', { class: 'group' }, 'School'), navLink('#/c/exams', 'Exam dates', 'flag'), navLink('#/c/examDetails', 'Exam right & wrong', 'check'),
-        navLink('#/c/achievements', 'Achievements', 'star'), navLink('#/c/qualifications', 'Qualifications', 'doc'), navLink('#/c/diary', 'School diary', 'book'), navLink(`#/career/${me}`, 'My future path', 'path'),
-        h('div', { class: 'group' }, 'Me'), navLink('#/mydiary', 'My diary', 'lock'), navLink('#/sick', 'Not feeling well', 'heart'), navLink('#/lunch', 'Lunch box', 'lunch'), navLink('#/me', 'My password', 'key'),
-      ]);
-    }
-    return allowedNav([
-      navLink('#/home', 'Home', 'home'),
-      h('div', { class: 'group' }, 'Children'), kids.map(c => navLink(`#/child/${c.id}`, c.name, h('span', { class: 'dot', style: { background: KH.kidColor(c) } }))),
-      navLink('#/school', 'School (SABIS)', 'school', badge), navLink('#/messages', 'Messages', 'chat', msgBadge()), navLink('#/add', 'Add marks', 'plus'),
-      h('div', { class: 'group' }, 'Plan'), navLink('#/calendar', 'Calendar', 'calendar'), navLink('#/c/exams', 'Exam dates', 'flag'), navLink('#/c/holidays', 'Holidays & school events', 'star'),
-      h('div', { class: 'group' }, 'School'), navLink('#/c/examDetails', 'Exam right & wrong', 'check'), navLink('#/goals', 'Goals', 'flag'), navLink('#/c/qualifications', 'Qualifications', 'doc'),
-      navLink('#/careers', 'Careers & paths', 'path'), navLink('#/c/achievements', 'Achievements', 'star'), navLink('#/c/diary', 'School diary', 'book'), navLink('#/c/meetings', 'School meetings', 'users'), navLink('#/c/contacts', 'Contacts', 'user'),
-      h('div', { class: 'group' }, 'Study'), navLink('#/study', 'Study hours', 'chart'), navLink('#/reading', 'Reading & books', 'book'),
-      h('div', { class: 'group' }, 'Health & daily'), navLink('#/sick', 'Sick records', 'heart'), navLink('#/lunch', 'Lunch box', 'lunch'),
-      h('div', { class: 'group' }, 'Money'), navLink('#/c/payments', 'Payments', 'wallet'), navLink('#/c/courses', 'Private courses', 'book'), navLink('#/reimburse', 'Company reimbursement', 'lock'),
-      h('div', { class: 'group' }, 'Family'), navLink('#/c/events', 'Family events', 'star'), navLink('#/photos', 'Photos', 'photo'), navLink('#/c/documents', 'Documents', 'doc'),
-      h('div', { class: 'group' }, 'Setup'), navLink('#/c/children', 'Child profiles', 'users'), navLink('#/accounts', 'Accounts', 'user'), navLink('#/credentials', 'Credentials', 'key'), navLink('#/cloud', 'Family cloud', 'sync'), navLink('#/control', 'Control', 'eye'), navLink('#/settings', 'Settings', 'gear'),
-    ]);
-  }
+  // the menu (groups, the children side by side, find a page, arrange by dragging) is built in lib/shell.js
+  function nav() { return KH.shell.nav(); }
 
   function titleFor(route) {
     const m = route.match(/^#\/c\/(\w+)/);
     if (m && KH.schema[m[1]]) return KH.schema[m[1]].title;
     const map = { '#/home': 'Home', '#/add': 'Add marks', '#/calendar': 'Calendar', '#/study': 'Study hours', '#/reading': 'Reading & books', '#/reimburse': 'Company reimbursement',
       '#/photos': 'Photos', '#/settings': 'Settings', '#/cloud': 'Family cloud', '#/control': 'Control', '#/accounts': 'Accounts', '#/careers': 'Careers & paths', '#/me': 'My password', '#/lunch': 'Lunch box', '#/sick': 'Sick records',
-      '#/school': 'School (SABIS)', '#/credentials': 'Credentials', '#/goals': app.isParent() ? 'Goals' : 'My goals', '#/mydiary': 'My diary', '#/messages': 'Messages' };
+      '#/school': 'School (SABIS)', '#/subjects': 'Subject analysis', '#/credentials': 'Credentials', '#/goals': app.isParent() ? 'Goals' : 'My goals', '#/mydiary': 'My diary', '#/messages': 'Messages' };
     if (route.startsWith('#/messages')) return 'Messages';
+    if (route.startsWith('#/notifications')) return 'Notifications';
     if (route === '#/sick' && !app.isParent()) return 'Not feeling well';
     if (route.startsWith('#/read/')) { const b = KH.lib && KH.lib.book(route.slice(7)); return b ? b.title : 'Reader'; }
     if (map[route]) return map[route];
@@ -298,7 +272,7 @@
     let m;
     if ((m = route.match(/^#\/(child|career)\/([\w-]+)/))) return m[2] === me;
     if ((m = route.match(/^#\/c\/(\w+)/))) { const sc = KH.schema[m[1]]; return !!sc && !sc.parentOnly; }
-    return ['#/calendar', '#/study', '#/reading', '#/lunch', '#/me', '#/school', '#/goals', '#/sick', '#/mydiary'].includes(route) || route.startsWith('#/school/') || route.startsWith('#/read/') || route.startsWith('#/messages');
+    return ['#/calendar', '#/study', '#/reading', '#/lunch', '#/me', '#/school', '#/goals', '#/sick', '#/mydiary'].includes(route) || route.startsWith('#/school/') || route.startsWith('#/read/') || route.startsWith('#/messages') || route.startsWith('#/notifications');
   }
 
   function themeOf() { return (store.user && store.user.theme) || localStorage.getItem('kh.theme') || 'light'; }
@@ -332,9 +306,8 @@
     const dark = themeOf() === 'dark';
     tools.appendChild(h('button', { class: 'btn icon pc-only', 'aria-label': dark ? 'Switch to light mode' : 'Switch to dark mode', title: dark ? 'Light mode' : 'Dark mode',
       onclick: () => app.setTheme(dark ? 'light' : 'dark') }, u.icon(dark ? 'sun' : 'moon')));
-    const opts = app.isParent() ? {} : { childId: store.user.childId, parent: false };
-    const n = A.alerts(store.data, u.today(), Object.assign({}, opts, { noMoney: access.noMoney() })).filter(a => a.severity === 'high' || a.severity === 'medium').length;
-    if (n) tools.appendChild(h('a', { class: 'chip medium alerts-chip', href: app.isParent() ? '#/home' : `#/child/${store.user.childId}`, 'aria-label': `${n} things to look at` }, u.icon('bell'), h('span', { class: 'chip-long' }, `${n} things to look at`), h('span', { class: 'chip-short', 'data-noi18n': '1' }, String(n))));
+    // sync, themes, messages and the notification centre (which also holds "things to look at")
+    KH.shell.tools().forEach(el => { if (el) tools.appendChild(el); });
     if (app.isParent() && KH.sabisButton && !app.route.startsWith('#/school')) tools.appendChild(h('span', { class: 'pc-only' }, KH.sabisButton()));
     return tools;
   }
@@ -402,6 +375,9 @@
     const prevMain = document.querySelector('.main');
     const same = !!prevMain && app._sameRoute === app.route;
     const keepScroll = same ? prevMain.scrollTop : 0;
+    // the left menu keeps its place when you open a page lower down (e.g. Payments)
+    const prevSide = document.querySelector('.layout > .side');
+    const keepSideScroll = prevSide ? prevSide.scrollTop : 0;
     app._sameRoute = app.route;
     // animations play when a page opens, not every time it redraws after a change
     const content = h('div', { class: `content ${same ? 'no-anim' : ''}` });
@@ -411,7 +387,7 @@
     app._navCount = (app._navCount || 0) + (same ? 0 : 1);
     // on a phone an open chat uses the whole screen, like other messaging apps
     const layout = h('div', { class: `layout ${/^#\/messages\/.+/.test(app.route) ? 'in-chat' : ''}` },
-      h('aside', { class: 'side' },
+      h('aside', { class: `side ${me.role === 'child' ? 'kid-side' : ''}` },
         h('div', { class: 'brand' }, h('img', { src: 'assets/icon.png', alt: '' }),
           h('div', null, h('div', { class: 'name', 'data-noi18n': '1' }, s.familyName && s.familyName !== 'M. Ebrahim Family Hub' ? s.familyName : 'M. Ebrahim'), h('div', { class: 'kids' }, 'Family Hub'))),
         h('nav', { class: 'nav' }, nav()),
@@ -419,6 +395,8 @@
           h('div', { style: { minWidth: 0 } }, h('div', { class: 'nm' }, me.displayName || me.username), h('div', { class: 'rl' }, me.role === 'parent' ? 'Parent' : 'Child')),
           h('button', { class: 'btn icon small', style: { marginInlineStart: 'auto' }, title: 'Sign out', 'aria-label': 'Sign out', onclick: logout }, u.icon('logout')))),
       main, phoneTabs());
+    if (KH.shell.closePop) KH.shell.closePop();
+    KH.shell.applyPalette();
     root.innerHTML = '';
     root.appendChild(layout);
     try {
@@ -430,6 +408,7 @@
     }
     I().apply(root);
     u.animateCounts(root, same);
+    if (keepSideScroll) { const side = layout.querySelector('.side'); if (side) side.scrollTop = keepSideScroll; }
     if (keepScroll) { main.scrollTop = keepScroll; main.classList.toggle('scrolled', keepScroll > 4); }
   };
   app.refresh = () => app.render();
@@ -458,6 +437,7 @@
     if ((m = route.match(/^#\/child\/([\w-]+)(?:\/(.*))?/))) return P.child(m[1], m[2]);
     if ((m = route.match(/^#\/career\/([\w-]+)/))) return P.career(m[1]);
     if (route === '#/careers') return P.careers();
+    if (route === '#/subjects') return P.subjects();
     if (route.startsWith('#/add')) return P.importer(route);
     if (route.startsWith('#/school')) return P.school(route);
     if (route === '#/calendar') return P.calendar();
@@ -475,6 +455,7 @@
     if (route === '#/goals') return P.goals();
     if (route === '#/mydiary') return app.isParent() ? P.dashboard() : P.mydiary();
     if (route.startsWith('#/messages')) return P.messages(route);
+    if (route === '#/notifications' || route.startsWith('#/notifications/')) return P.notifications(route);
     if ((m = route.match(/^#\/read\/([\w-]+)/))) return P.reader(m[1]);
     if ((m = route.match(/^#\/c\/(\w+)/)) && KH.schema[m[1]]) return KH.crud.page(m[1]);
     return P.dashboard();
@@ -496,6 +477,7 @@
     hub.session({ role: null, childId: null }).catch(() => {});
     store.user = null;
     lock.until = 0;
+    KH.shell.applyPalette();
     showLogin();
   }
 
@@ -508,7 +490,9 @@
     await pushSession();
     if (user.role === 'parent') upgradeData();
     if (KH.msg && KH.msg.refreshOverview) setTimeout(() => KH.msg.refreshOverview(), 800);
-    location.hash = user.role === 'parent' ? '#/home' : `#/child/${user.childId}`;
+    // a click on a notification opened the app: show that notification in the notification centre
+    const want = KH.notes ? await KH.notes.takePending() : null;
+    location.hash = want || (user.role === 'parent' ? '#/home' : `#/child/${user.childId}`);
     app.render();
   }
 
@@ -897,6 +881,7 @@
 
   // notification sounds chosen in Settings (the PC plays them; a phone uses its own sound)
   if (hub.onSound) hub.onSound(sd => {
+    if (KH.notes) { KH.notes.play(sd.name, sd.volume); return; }
     try { const a = new Audio(`../assets/sounds/${String(sd.name).replace(/[^a-z]/g, '')}.wav`); a.volume = Math.max(0, Math.min(1, Number(sd.volume) || 0.8)); a.play().catch(() => {}); } catch (e) { /* no sound */ }
   });
 

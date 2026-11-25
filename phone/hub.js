@@ -733,6 +733,33 @@
     msgMarkers: () => MSG.readMarkers(),
     msgOverview: chats => MSG.overview(chats || []),
     onMessage: cb => { L.message.push(cb); },
+    // the notification centre's history: the service worker keeps every notification it showed
+    async notifyLog() {
+      try { const c = await caches.open('fh-notes'); const r = await c.match('log'); const l = r ? await r.json() : []; return (Array.isArray(l) ? l : []).reverse(); } catch (e) { return []; }
+    },
+    async notifyClear(ids) {
+      try {
+        const c = await caches.open('fh-notes'); const r = await c.match('log'); const l = r ? await r.json() : [];
+        const drop = Array.isArray(ids) ? new Set(ids) : null;
+        await c.put('log', new Response(JSON.stringify(drop ? l.filter(x => !drop.has(x.id)) : []), { headers: { 'Content-Type': 'application/json' } }));
+      } catch (e) { /* nothing kept */ }
+      return true;
+    },
+    notifyPending: async () => null,
+    onNotifyLogged: cb => { if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', e => { const m = e.data || {}; if (m.type === 'fh-note') cb(m); }); },
+    // this phone's own choices: the chat tone (played while the app is open) and the notification picture
+    async soundGet() {
+      let cur = {};
+      try { cur = JSON.parse(localStorage.getItem('kh.sound') || '{}') || {}; } catch (e) { cur = {}; }
+      return Object.assign({ sound: 'phone', chat: 'same', icon: 'logo', volume: 0.8, quiet: false, from: '22:00', to: '06:30' }, cur, { phone: true });
+    },
+    async soundSet(b) {
+      const cur = await this.soundGet();
+      const next = { chat: b.chat || cur.chat, icon: b.icon || cur.icon, volume: Math.max(0, Math.min(1, Number(b.volume != null ? b.volume : cur.volume))) };
+      try { localStorage.setItem('kh.sound', JSON.stringify(next)); } catch (e) { /* not kept */ }
+      try { const c = await caches.open('fh-notes'); await c.put('prefs', new Response(JSON.stringify({ icon: next.icon }), { headers: { 'Content-Type': 'application/json' } })); } catch (e) { /* the service worker keeps the logo */ }
+      return Object.assign({}, cur, next);
+    },
     onNav: cb => { L.nav.push(cb); },
     diaryStatus: childId => DIARY.status(childId),
     diarySetup: pin => DIARY.setup(pin),

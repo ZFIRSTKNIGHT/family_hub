@@ -103,9 +103,12 @@
     const first = String(KH.store.user.displayName || KH.store.user.username || '').split(/\s+/)[0];
     const latest = kids.map(c => A.latestSummary(data, c.id)).filter(Boolean)[0];
     const wrap = h('div');
-    wrap.appendChild(h('div', { class: 'row', style: { marginBottom: '16px', alignItems: 'flex-end' } },
+    // the date, the time and a greeting for the time of day, with the term and the children
+    const termLine = [latest ? `${latest.term} · ${latest.year}` : u.academicYear(), kids.map(k => k.name).join(', ')].filter(Boolean).join(' · ');
+    if (KH.shell) wrap.appendChild(KH.shell.hero(first, termLine));
+    else wrap.appendChild(h('div', { class: 'row', style: { marginBottom: '16px', alignItems: 'flex-end' } },
       h('div', null, h('div', { style: { fontSize: '22px', fontWeight: 800, letterSpacing: '-.02em' } }, `Welcome back, ${first}`),
-        h('div', { class: 'muted', style: { fontWeight: 500 } }, [latest ? `${latest.term} · ${latest.year}` : u.academicYear(), kids.map(k => k.name).join(', ')].filter(Boolean).join(' · ')))));
+        h('div', { class: 'muted', style: { fontWeight: 500 } }, termLine))));
     if (!kids.length) wrap.appendChild(h('div', { class: 'note', style: { marginBottom: '16px' } }, 'Start by adding the children in Child profiles.'));
     wrap.appendChild(KH.sabisPanel());
     wrap.appendChild(h('div', { class: 'kid-grid' }, kids.map(kidCard)));

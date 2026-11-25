@@ -241,26 +241,13 @@
     return box;
   }
 
-  // the sound of notifications on this PC: Windows' own, one of the app's, or none; volume; quiet hours
+  // the sound of notifications on this PC: Windows' own, one of the app's, or none; a separate tone for
+  // chat messages (with the messenger-style ones); volume; quiet hours; the picture on notifications
   function soundBlock() {
     const box = h('div', { style: { margin: '4px 0 14px' } });
-    if (!hub.soundGet) return box;
-    const NAMES = [['chime', 'Chime'], ['bell', 'Bell'], ['twotone', 'Two tones'], ['harp', 'Harp'], ['pop', 'Soft pop'], ['windows', "Windows' own sound"], ['none', 'No sound']];
-    hub.soundGet().then(cur => {
-      const save = async b => { try { cur = await hub.soundSet(Object.assign({}, cur, b)); } catch (e) { u.toast(e.message, 'bad'); } };
-      const play = () => { if (cur.sound === 'none' || cur.sound === 'windows') return; const a = new Audio(`../assets/sounds/${cur.sound}.wav`); a.volume = cur.volume; a.play().catch(() => {}); };
-      const sel = h('select', { onchange: async e => { await save({ sound: e.target.value }); play(); } }, NAMES.map(([v, l]) => h('option', { value: v, selected: cur.sound === v }, l)));
-      const vol = h('input', { type: 'range', min: '0', max: '100', value: String(Math.round(cur.volume * 100)), style: { width: '160px' }, onchange: async e => { await save({ volume: Number(e.target.value) / 100 }); play(); } });
-      const from = h('input', { type: 'time', value: cur.from, onchange: e => save({ from: e.target.value }) });
-      const to = h('input', { type: 'time', value: cur.to, onchange: e => save({ to: e.target.value }) });
-      const quiet = h('input', { type: 'checkbox', checked: cur.quiet, onchange: e => save({ quiet: e.target.checked }) });
-      box.appendChild(KH.i18n.apply(h('div', null,
-        h('h3', { style: { margin: '0 0 6px', fontSize: '14px' } }, 'Notification sound on this PC'),
-        h('div', { class: 'row', style: { gap: '10px', flexWrap: 'wrap' } }, sel, h('span', { class: 'small muted' }, 'Volume'), vol,
-          h('button', { class: 'btn small', onclick: play }, 'Play')),
-        h('label', { class: 'row small', style: { marginTop: '8px', gap: '8px', flexWrap: 'wrap' } }, quiet, h('span', null, 'Quiet hours: no sound from'), from, h('span', null, 'to'), to),
-        h('div', { class: 'small muted', style: { marginTop: '4px' } }, 'During quiet hours notifications still appear, without sound. Phones use their own notification sound.'))));
-    }).catch(() => {});
+    if (!hub.soundGet || !KH.notes) return box;
+    box.appendChild(KH.notes.prefsCard());
+    box.appendChild(h('a', { class: 'btn small', href: '#/notifications' }, u.icon('bell'), 'Open the notification centre'));
     return box;
   }
 
@@ -387,7 +374,9 @@
   function phoneSettings(s, info) {
     const nameIn = h('input', { type: 'text', value: s.familyName || 'M. Ebrahim Family Hub', onchange: e => { KH.store.setSetting('familyName', e.target.value.trim() || 'M. Ebrahim Family Hub'); KH.app.refresh(); } });
     const curIn = h('input', { type: 'text', value: s.currency || 'SAR', onchange: e => { KH.store.setSetting('currency', e.target.value.trim() || 'SAR'); u.toast('Saved'); } });
-    return h('div', null, phoneCard(), appearanceCard(), pinCard(), generalCard(s, nameIn, curIn), analysisCard(), aboutCard(info));
+    const notesCard = KH.notes && hub.soundGet ? u.section('Notifications', KH.notes.prefsCard({ title: false }),
+      h('a', { class: 'btn small', href: '#/notifications' }, u.icon('bell'), 'Open the notification centre')) : null;
+    return h('div', null, phoneCard(), notesCard, appearanceCard(), pinCard(), generalCard(s, nameIn, curIn), analysisCard(), aboutCard(info));
   }
 
   KH.pages.settings = function () {
