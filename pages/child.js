@@ -290,11 +290,15 @@
     const tabs = h('div', { class: 'tabs' },
       h('a', { class: t === 'overview' ? 'active' : '', href: `#/child/${id}` }, 'Overview'),
       h('a', { class: t === 'subjects' ? 'active' : '', href: `#/child/${id}/subjects` }, 'Subjects'),
+      KH.routineStrip && KH.features.on('routine') && KH.access.allows('#/routine') ? h('a', { class: t === 'routine' ? 'active' : '', href: `#/child/${id}/routine` }, 'Routine & points') : null,
       h('a', { class: t === 'school' ? 'active' : '', href: `#/child/${id}/school` }, 'School (SABIS)'),
       h('a', { class: t === 'profile' ? 'active' : '', href: `#/child/${id}/profile` }, 'Profile & milestones'),
       h('a', { href: `#/career/${id}` }, 'Future path'));
     // a child's own page opens with a big hello, the date and the time
     const clock = !KH.app.isParent() && KH.shell && t === 'overview' ? KH.shell.hero(String(KH.store.user.displayName || child.name || '').split(/\s+/)[0], line || null) : null;
-    return h('div', null, clock, clock ? null : hero, tabs, t === 'profile' ? profile(child) : t === 'school' ? schoolTab(child) : t === 'subjects' ? KH.pages.subjectsTab(child) : overview(child));
+    // version 4.3: the day at a glance (check-ins, points, challenges) on a child's own page
+    const strip = !KH.app.isParent() && t === 'overview' && KH.routineStrip ? KH.routineStrip(child) : null;
+    return h('div', null, clock, clock ? null : hero, strip, tabs, t === 'profile' ? profile(child) : t === 'school' ? schoolTab(child) : t === 'subjects' ? KH.pages.subjectsTab(child)
+      : t === 'routine' && KH.pages.routineChild ? KH.pages.routineChild(child) : overview(child));
   };
 })();

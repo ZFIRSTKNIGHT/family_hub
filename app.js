@@ -167,7 +167,7 @@
   const app = KH.app = { filterChild: '', route: '#/home', pages: KH.pages || {} };
   KH.pages = app.pages;
   const root = document.getElementById('app');
-  const PROTECTED = ['#/reimburse', '#/credentials', '#/c/payments'];
+  const PROTECTED = ['#/reimburse', '#/credentials', '#/c/payments', '#/spending'];
 
   // ---------------- what other parent accounts see (the organiser's Control section) ----------------
   const SECTIONS = [
@@ -178,6 +178,8 @@
     { key: 'study', label: 'Study hours and reading', routes: ['#/study', '#/reading'] },
     { key: 'health', label: 'Sick records and lunch box', routes: ['#/sick', '#/lunch'] },
     { key: 'money', label: 'Money: payments and private courses', routes: ['#/c/payments', '#/c/courses'], off: true },
+    { key: 'routine', label: 'Routine & rewards: check-ins, challenges, points and wishlists', routes: ['#/routine'] },
+    { key: 'spending', label: 'Spending register', routes: ['#/spending', '#/c/spending'], off: true },
     { key: 'family', label: 'Family events, photos and documents', routes: ['#/c/events', '#/photos', '#/c/documents'] },
     { key: 'profiles', label: 'Child profiles and accounts', routes: ['#/c/children', '#/accounts'] },
     { key: 'credentials', label: 'Credentials (saved logins)', routes: ['#/credentials'], off: true },
@@ -201,6 +203,8 @@
     { key: 'documents', label: 'Documents', routes: ['#/c/documents'] },
     { key: 'diary', label: "Children's private diaries", routes: ['#/mydiary'] },
     { key: 'credentials', label: 'Credentials (saved logins)', routes: ['#/credentials'] },
+    { key: 'routine', label: 'Daily routine and rewards (check-ins, challenges, points, wishlists)', routes: ['#/routine'] },
+    { key: 'spending', label: 'Spending register', routes: ['#/spending', '#/c/spending'] },
   ];
   const features = KH.features = {
     list: FEATURES,
@@ -254,9 +258,10 @@
     if (m && KH.schema[m[1]]) return KH.schema[m[1]].title;
     const map = { '#/home': 'Home', '#/add': 'Add marks', '#/calendar': 'Calendar', '#/study': 'Study hours', '#/reading': 'Reading & books', '#/reimburse': 'Company reimbursement',
       '#/photos': 'Photos', '#/settings': 'Settings', '#/cloud': 'Family cloud', '#/control': 'Control', '#/accounts': 'Accounts', '#/careers': 'Careers & paths', '#/me': 'My password', '#/lunch': 'Lunch box', '#/sick': 'Sick records',
-      '#/school': 'School (SABIS)', '#/subjects': 'Subject analysis', '#/credentials': 'Credentials', '#/goals': app.isParent() ? 'Goals' : 'My goals', '#/mydiary': 'My diary', '#/messages': 'Messages' };
+      '#/school': 'School (SABIS)', '#/subjects': 'Subject analysis', '#/spending': 'Spending register', '#/credentials': 'Credentials', '#/goals': app.isParent() ? 'Goals' : 'My goals', '#/mydiary': 'My diary', '#/messages': 'Messages' };
     if (route.startsWith('#/messages')) return 'Messages';
     if (route.startsWith('#/notifications')) return 'Notifications';
+    if (route.startsWith('#/routine')) return app.isParent() ? 'Routine & rewards' : 'My routine & rewards';
     if (route === '#/sick' && !app.isParent()) return 'Not feeling well';
     if (route.startsWith('#/read/')) { const b = KH.lib && KH.lib.book(route.slice(7)); return b ? b.title : 'Reader'; }
     if (map[route]) return map[route];
@@ -272,7 +277,8 @@
     let m;
     if ((m = route.match(/^#\/(child|career)\/([\w-]+)/))) return m[2] === me;
     if ((m = route.match(/^#\/c\/(\w+)/))) { const sc = KH.schema[m[1]]; return !!sc && !sc.parentOnly; }
-    return ['#/calendar', '#/study', '#/reading', '#/lunch', '#/me', '#/school', '#/goals', '#/sick', '#/mydiary'].includes(route) || route.startsWith('#/school/') || route.startsWith('#/read/') || route.startsWith('#/messages') || route.startsWith('#/notifications');
+    return ['#/calendar', '#/study', '#/reading', '#/lunch', '#/me', '#/school', '#/goals', '#/sick', '#/mydiary'].includes(route) || route.startsWith('#/school/') || route.startsWith('#/read/') || route.startsWith('#/messages') || route.startsWith('#/notifications')
+      || route === '#/routine' || route.startsWith('#/routine/');
   }
 
   function themeOf() { return (store.user && store.user.theme) || localStorage.getItem('kh.theme') || 'light'; }
@@ -453,6 +459,8 @@
     if (route === '#/lunch') return P.lunch();
     if (route === '#/sick') return P.sick();
     if (route === '#/goals') return P.goals();
+    if (route === '#/routine' || route.startsWith('#/routine/')) return P.routine(route);
+    if (route === '#/spending') return P.spending();
     if (route === '#/mydiary') return app.isParent() ? P.dashboard() : P.mydiary();
     if (route.startsWith('#/messages')) return P.messages(route);
     if (route === '#/notifications' || route.startsWith('#/notifications/')) return P.notifications(route);

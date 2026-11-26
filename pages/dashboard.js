@@ -12,7 +12,7 @@
   }
   KH.avatar = avatar;
 
-  const KIND_LABEL = { analysis: 'Analysis', payment: 'Payment', birthday: 'Birthday', health: 'Health', lunch: 'Lunch', homework: 'Homework', upcoming: 'Coming up', goal: 'Goal', kid: 'From the children' };
+  const KIND_LABEL = { analysis: 'Analysis', payment: 'Payment', birthday: 'Birthday', health: 'Health', lunch: 'Lunch', homework: 'Homework', upcoming: 'Coming up', goal: 'Goal', kid: 'From the children', routine: 'Routine' };
   function alertList(list, limit) {
     if (!list.length) return h('div', { class: 'empty' }, 'Nothing needs your attention right now.');
     return h('div', null, list.slice(0, limit || 12).map((a, i) => h('div', { class: 'alert-item', style: { animationDelay: `${Math.min(i, 8) * 0.04}s` } },
@@ -117,6 +117,7 @@
         u.section('Needs attention', alertList(alerts, 14)),
         trends.length ? u.section('Patterns across the children', h('div', null, trends.map(t => h('div', { class: `finding ${t.severity}` }, t.text)))) : null),
       h('div', null,
+        KH.routineHome ? KH.routineHome() : null,
         schoolNews(),
         homeworkDue(),
         u.section('Coming up (next 3 weeks)', upcoming.length ? h('table', { class: 'list' }, h('tbody', null, upcoming.map(i => h('tr', null,

@@ -5,7 +5,9 @@ const APP_DIR_NAME = 'M. Ebrahim Family Hub';
 
 const COLLECTIONS = ['children', 'reports', 'diary', 'achievements', 'meetings', 'contacts', 'events', 'exams', 'examDetails', 'holidays',
   'payments', 'courses', 'qualifications', 'goals', 'actions', 'readingLog', 'studyLog', 'books', 'photos', 'documents', 'users', 'lunch', 'sick',
-  'credentials', 'announcements', 'homework', 'shelf', 'chats'];
+  'credentials', 'announcements', 'homework', 'shelf', 'chats',
+  // version 4.3: daily routine and rewards, and the spending register
+  'checkins', 'habits', 'challenges', 'ticks', 'agreements', 'consequences', 'points', 'rewards', 'redemptions', 'wishes', 'spending'];
 
 function emptyData() {
   const d = { app: APP_DIR_NAME, version: 2, settings: {}, deleted: {} };
